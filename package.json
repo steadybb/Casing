@@ -5,13 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js",
-    "pm2": "pm2 start index.js --name redirector",
-    "logs": "tail -f requests.log clicks.log success.log"
+    "dev": "node --watch index.js"
   },
   "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=10.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "express": "^4.21.2",
@@ -22,18 +19,7 @@
     "javascript-obfuscator": "^4.1.1",
     "compression": "^1.7.5",
     "morgan": "^1.10.0",
-    "express-validator": "^7.2.0"
-  },
-  "keywords": [
-    "redirector",
-    "security",
-    "bot-detection",
-    "encryption",
-    "obfuscation",
-    "anti-bot"
-  ],
-  "author": "",
-  "license": "UNLICENSED",
-  "private": true,
-  "type": "commonjs"
+    "express-validator": "^7.2.0",
+    "ua-parser-js": "^1.0.38"
+  }
 }
