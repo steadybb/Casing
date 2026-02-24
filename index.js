@@ -30,14 +30,53 @@ const LOG_FILE     = 'clicks.log';
 const REQUEST_LOG_FILE = 'requests.log';
 const SUCCESS_LOG_FILE = 'success.log';
 const PORT         = process.env.PORT || 10000;
-const LINK_TTL_SEC = 1800; // 30 minutes
+
+// Parse TTL from environment variable (supports: 30m, 24h, 7d, 3600, etc.)
+function parseTTL(ttlValue) {
+  const defaultTTL = 1800; // 30 minutes default
+  
+  if (!ttlValue) return defaultTTL;
+  
+  const match = String(ttlValue).match(/^(\d+)([smhd])?$/i);
+  if (!match) return defaultTTL;
+  
+  const num = parseInt(match[1]);
+  const unit = (match[2] || 'm').toLowerCase();
+  
+  switch(unit) {
+    case 's': return num;                    // seconds
+    case 'm': return num * 60;                // minutes to seconds
+    case 'h': return num * 3600;               // hours to seconds
+    case 'd': return num * 86400;               // days to seconds
+    default: return num * 60;                   // default to minutes
+  }
+}
+
+const LINK_TTL_SEC = parseTTL(process.env.LINK_TTL);
 const METRICS_API_KEY = process.env.METRICS_API_KEY || crypto.randomBytes(32).toString('hex');
 const IPINFO_TOKEN = process.env.IPINFO_TOKEN;
 const NODE_ENV = process.env.NODE_ENV || 'production';
 
+// Format TTL for display
+function formatDuration(seconds) {
+  if (seconds < 60) return `${seconds} seconds`;
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60);
+    return `${mins} minute${mins !== 1 ? 's' : ''}`;
+  }
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return mins > 0 ? `${hours} hour${hours !== 1 ? 's' : ''} ${mins} min` : `${hours} hour${hours !== 1 ? 's' : ''}`;
+  }
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  return hours > 0 ? `${days} day${days !== 1 ? 's' : ''} ${hours} hour${hours !== 1 ? 's' : ''}` : `${days} day${days !== 1 ? 's' : ''}`;
+}
+
 // Cache instances
 const geoCache  = new NodeCache({ stdTTL: 86400, checkperiod: 3600, useClones: false });
-const linkCache = new NodeCache({ stdTTL: LINK_TTL_SEC, checkperiod: 300, useClones: false });
+const linkCache = new NodeCache({ stdTTL: LINK_TTL_SEC, checkperiod: Math.min(300, Math.floor(LINK_TTL_SEC / 10)), useClones: false, maxKeys: 1000000 });
 const linkRequestCache = new NodeCache({ stdTTL: 60, checkperiod: 10, useClones: false });
 const failCache = new NodeCache({ stdTTL: 3600, checkperiod: 600, useClones: false });
 const deviceCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useClones: false });
@@ -232,7 +271,11 @@ app.get('/metrics', async (req, res) => {
       expired: stats.expiredLinks,
       generated: stats.generatedLinks
     },
-    devices: stats.byDevice
+    devices: stats.byDevice,
+    config: {
+      linkTTL: LINK_TTL_SEC,
+      linkTTLFormatted: formatDuration(LINK_TTL_SEC)
+    }
   };
   
   res.json(metrics);
@@ -262,7 +305,7 @@ app.get('/expired', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Link Expired</title><style nonce="${nonce}">${styles}</style></head>
-<body><div class="card"><span class="icon">🔗</span><h1>Link Expired</h1><p>This link expired after ${LINK_TTL_SEC/60} minutes.</p><a href="${originalTarget}" class="btn">Continue</a></div></body>
+<body><div class="card"><span class="icon">🔗</span><h1>Link Expired</h1><p>This link expired after ${formatDuration(LINK_TTL_SEC)}.</p><a href="${originalTarget}" class="btn">Continue</a></div></body>
 </html>`);
 });
 
@@ -425,7 +468,8 @@ app.get('/g', (req, res) => {
   
   res.json({ 
     url: `${req.protocol}://${req.get('host')}/v/${id}`,
-    expires: LINK_TTL_SEC
+    expires: LINK_TTL_SEC,
+    expires_human: formatDuration(LINK_TTL_SEC)
   });
 });
 
@@ -548,8 +592,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[STARTUP] 🚀 Redirector v2.0 - Mobile Optimized`);
   console.log(`[STARTUP] 📡 Port: ${PORT}`);
   console.log(`[STARTUP] 🔑 Metrics: ${METRICS_API_KEY.substring(0, 8)}...`);
-  console.log(`[STARTUP] ⏱️  Link TTL: ${LINK_TTL_SEC/60} minutes`);
+  console.log(`[STARTUP] ⏱️  Link TTL: ${formatDuration(LINK_TTL_SEC)} (${LINK_TTL_SEC} seconds)`);
   console.log(`[STARTUP] 📱 Mobile devices: ALWAYS PASS (threshold: 20)`);
+  console.log(`[STARTUP] 💡 To change TTL, set LINK_TTL in .env (e.g., LINK_TTL=24h, LINK_TTL=7d, LINK_TTL=3600)`);
 });
 
 server.keepAliveTimeout = 30000;
