@@ -71,7 +71,7 @@ ${colors.bright}Options:${colors.reset}
   --backup          Backup existing .env file
   --rotate          Rotate existing secrets (generate new ones)
   --validate        Validate existing .env file
-  --export          Export secrets as JSON
+  --export <file>   Export secrets as JSON
   --import <file>   Import secrets from JSON file
   --help            Show this help message
 
@@ -135,8 +135,10 @@ function generatePasswordHash(password, rounds = 12) {
   return bcrypt.hashSync(password, rounds);
 }
 
+// FIXED: generateOTPSecret - removed base32 encoding
 function generateOTPSecret() {
-  return crypto.randomBytes(20).toString('base32');
+  // Generate a random 20-byte secret and return as hex instead of base32
+  return crypto.randomBytes(20).toString('hex');
 }
 
 function generateSalt() {
@@ -767,7 +769,7 @@ async function main() {
     apiKey: generateAPIKey(),
     webhookSecret: generateWebhookSecret(),
     salt: generateSalt(),
-    otpSecret: generateOTPSecret()
+    otpSecret: generateOTPSecret() // FIXED: Now returns hex instead of base32
   };
   
   // Get password and generate hash
@@ -814,6 +816,7 @@ async function main() {
   env.ENCRYPTION_KEY = secrets.encryptionKey;
   env.API_KEY = secrets.apiKey;
   env.WEBHOOK_SECRET = secrets.webhookSecret;
+  env.OTP_SECRET = secrets.otpSecret;
   
   // Set defaults
   env.PORT = env.PORT || '10000';
