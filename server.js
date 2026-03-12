@@ -1654,6 +1654,7 @@ app.post('/admin/login', csrfProtection, express.json(), async (req, res, next) 
   }
 });
 
+// FIXED: Admin route with proper template literal escaping
 app.get('/admin', (req, res, next) => {
   if (!req.session.authenticated) {
     return res.redirect('/admin/login');
@@ -1899,15 +1900,20 @@ app.get('/admin', (req, res, next) => {
       });
     }
     
+    // FIXED: updateCountryStats function with proper string concatenation
     function updateCountryStats(countries) {
       const container = document.getElementById('countryStats');
       const sorted = Object.entries(countries)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
       
-      container.innerHTML = sorted.map(([country, count]) => 
-        `<div>${country}: ${count.toLocaleString()}</div>`
-      ).join('');
+      let html = '';
+      for (let i = 0; i < sorted.length; i++) {
+        const country = sorted[i][0];
+        const count = sorted[i][1];
+        html += '<div>' + country + ': ' + count.toLocaleString() + '</div>';
+      }
+      container.innerHTML = html;
     }
     
     async function generateLink() {
@@ -1958,13 +1964,12 @@ app.get('/admin', (req, res, next) => {
       const res = await fetch('/api/stats/' + linkId);
       if (res.ok) {
         const stats = await res.json();
-        document.getElementById('linkStats').innerHTML = `
-          <h4>Link Statistics</h4>
-          <p>Total Clicks: ${stats.clicks || 0}</p>
-          <p>Unique Visitors: ${stats.uniqueVisitors || 0}</p>
-          <p>Created: ${stats.created ? new Date(stats.created).toLocaleString() : 'N/A'}</p>
-          <p>Expires: ${stats.expiresAt ? new Date(stats.expiresAt).toLocaleString() : 'N/A'}</p>
-        `;
+        document.getElementById('linkStats').innerHTML = 
+          '<h4>Link Statistics</h4>' +
+          '<p>Total Clicks: ' + (stats.clicks || 0) + '</p>' +
+          '<p>Unique Visitors: ' + (stats.uniqueVisitors || 0) + '</p>' +
+          '<p>Created: ' + (stats.created ? new Date(stats.created).toLocaleString() : 'N/A') + '</p>' +
+          '<p>Expires: ' + (stats.expiresAt ? new Date(stats.expiresAt).toLocaleString() : 'N/A') + '</p>';
       }
     }
     
@@ -2000,10 +2005,15 @@ app.get('/admin', (req, res, next) => {
       }, 3000);
     }
     
+    // FIXED: showTab function with proper string concatenation
     function showTab(tab) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      document.querySelector(`.tab[onclick="showTab('${tab}')"]`).classList.add('active');
+      
+      const tabElement = document.querySelector('.tab[onclick="showTab(\'' + tab + '\')"]');
+      if (tabElement) {
+        tabElement.classList.add('active');
+      }
       document.getElementById(tab).classList.add('active');
     }
     
@@ -2013,12 +2023,12 @@ app.get('/admin', (req, res, next) => {
       });
     }
     
-    // Update uptime
+    // FIXED: uptime display with proper string concatenation
     setInterval(() => {
       const uptime = Math.floor(process.uptime());
       const hours = Math.floor(uptime / 3600);
       const minutes = Math.floor((uptime % 3600) / 60);
-      document.getElementById('uptime').textContent = \`Uptime: \${hours}h \${minutes}m\`;
+      document.getElementById('uptime').textContent = 'Uptime: ' + hours + 'h ' + minutes + 'm';
     }, 1000);
   </script>
 </body>
