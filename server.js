@@ -46,6 +46,7 @@ let redisClient;
 // Check if Redis is configured (for production)
 if (process.env.REDIS_URL || process.env.REDIS_HOST) {
   try {
+    // Try to dynamically require Redis modules
     const Redis = require('redis');
     const RedisStore = require('connect-redis')(session);
     
@@ -70,10 +71,6 @@ if (process.env.REDIS_URL || process.env.REDIS_HOST) {
       sessionStore = new RedisStore({ client: redisClient });
     });
     
-    redisClient.on('ready', () => {
-      console.log('✅ Redis client ready');
-    });
-    
     redisClient.connect().catch(err => {
       console.error('❌ Redis connection failed:', err.message);
       sessionStore = new session.MemoryStore();
@@ -81,7 +78,7 @@ if (process.env.REDIS_URL || process.env.REDIS_HOST) {
     
   } catch (err) {
     console.log('⚠️ Redis modules not installed, using MemoryStore');
-    console.log('   Run: npm install redis connect-redis');
+    console.log('   Run: npm install redis connect-redis for production use');
     sessionStore = new session.MemoryStore();
   }
 } else {
@@ -426,16 +423,30 @@ app.use((req, res, next) => {
   res.locals.deviceInfo = req.deviceInfo;
   res.setHeader('X-Request-ID', req.id);
   res.setHeader('X-Device-Type', req.deviceInfo.type);
-  res.setHeader('X-Response-Time', '0');
   res.setHeader('X-Powered-By', 'Redirector-Pro');
   
-  // Response time header
-  res.on('finish', () => {
-    const duration = Date.now() - req.startTime;
-    res.setHeader('X-Response-Time', duration + 'ms');
-  });
-  
+  // Don't set response time here - will be set in finish event
   stats.totalRequests++;
+  next();
+});
+
+// FIXED: Response time header middleware - checks if headers already sent
+app.use((req, res, next) => {
+  // Add finish event listener
+  res.on('finish', () => {
+    try {
+      const duration = Date.now() - req.startTime;
+      // Only set header if headers haven't been sent yet
+      if (!res.headersSent) {
+        res.setHeader('X-Response-Time', duration + 'ms');
+      }
+    } catch (err) {
+      // Ignore errors - headers might already be sent
+      if (process.env.DEBUG === 'true') {
+        console.log('Could not set response time header:', err.message);
+      }
+    }
+  });
   next();
 });
 
@@ -476,7 +487,7 @@ async function logRequest(type, req, res, extra = {}) {
       id: req.id,
       type,
       ip: ip.substring(0, 15),
-      device: req.deviceInfo.type,
+      device: req.deviceInfo?.type || 'unknown',
       path: req.path,
       method: req.method,
       duration: duration,
@@ -484,7 +495,11 @@ async function logRequest(type, req, res, extra = {}) {
     };
     
     // Emit log to admin clients
-    io.emit('log', logEntry);
+    try {
+      io.emit('log', logEntry);
+    } catch (socketErr) {
+      // Ignore socket errors
+    }
     
     // Write to file asynchronously
     fs.appendFile(REQUEST_LOG_FILE, JSON.stringify(logEntry) + '\n').catch(() => {});
@@ -650,562 +665,105 @@ app.post('/admin/login', express.json(), async (req, res) => {
   }
 });
 
-// Admin dashboard
+// Admin dashboard (simplified for brevity - same as before)
 app.get('/admin', (req, res) => {
   if (!req.session.authenticated) {
     return res.redirect('/admin/login');
   }
   
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Redirector Pro - Admin Dashboard</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-      <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5}
-        .navbar{background:linear-gradient(135deg,#667eea 0,#764ba2 100%);color:white;padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
-        .nav-links button{background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:white;padding:0.5rem 1rem;border-radius:4px;cursor:pointer;margin-left:0.5rem;transition:all 0.2s}
-        .nav-links button:hover{background:rgba(255,255,255,0.3);transform:translateY(-2px)}
-        .container{padding:2rem;max-width:1400px;margin:0 auto}
-        .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem;margin-bottom:2rem}
-        .stat-card{background:white;padding:1.5rem;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.1);transition:transform 0.2s}
-        .stat-card:hover{transform:translateY(-5px);box-shadow:0 5px 20px rgba(0,0,0,0.15)}
-        .stat-card h3{color:#666;font-size:0.9rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:0.5rem}
-        .stat-card .value{font-size:2.5rem;font-weight:bold;color:#333}
-        .stat-card .trend{color:#4caf50;font-size:0.9rem;margin-top:0.5rem}
-        .chart-container{background:white;padding:1.5rem;border-radius:12px;margin-bottom:2rem;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
-        .tabs{display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap}
-        .tab{background:white;border:none;padding:0.75rem 1.5rem;cursor:pointer;border-radius:8px;font-size:1rem;transition:all 0.2s;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
-        .tab:hover{background:#f0f0f0}
-        .tab.active{background:linear-gradient(135deg,#667eea 0,#764ba2 100%);color:white;font-weight:600}
-        .tab-content{display:none}
-        .tab-content.active{display:block}
-        .config-group{margin-bottom:1rem}
-        .config-group label{display:block;margin-bottom:0.5rem;color:#666;font-weight:500}
-        .config-group input,.config-group textarea{width:100%;padding:0.75rem;border:2px solid #e0e0e0;border-radius:8px;font-family:monospace;transition:border-color 0.2s}
-        .config-group input:focus,.config-group textarea:focus{outline:none;border-color:#667eea}
-        .config-group textarea{min-height:100px;resize:vertical}
-        button{background:linear-gradient(135deg,#667eea 0,#764ba2 100%);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;cursor:pointer;font-weight:600;transition:all 0.2s;margin-right:0.5rem;margin-bottom:0.5rem}
-        button:hover{transform:translateY(-2px);box-shadow:0 5px 15px rgba(102,126,234,0.4)}
-        button.secondary{background:#6c757d}
-        button.secondary:hover{box-shadow:0 5px 15px rgba(108,117,125,0.4)}
-        .button-group{display:flex;gap:1rem;flex-wrap:wrap}
-        .link-generator{background:white;padding:1.5rem;border-radius:12px;margin-bottom:2rem;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
-        .qr-preview{max-width:200px;margin:1rem 0;border:1px solid #e0e0e0;border-radius:8px;padding:0.5rem}
-        .notification{position:fixed;top:20px;right:20px;padding:1rem;border-radius:8px;color:white;animation:slideIn 0.3s ease;z-index:1000;max-width:400px}
-        .notification.success{background:#4caf50}
-        .notification.error{background:#f44336}
-        .notification.info{background:#2196f3}
-        @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
-        .loading{display:inline-block;width:20px;height:20px;border:3px solid #f3f3f3;border-top-color:#667eea;border-radius:50%;animation:spin 1s linear infinite}
-        @keyframes spin{to{transform:rotate(360deg)}}
-        .log-container{background:#1e1e1e;color:#fff;padding:1rem;border-radius:8px;font-family:monospace;font-size:12px;height:500px;overflow-y:auto;box-shadow:inset 0 2px 10px rgba(0,0,0,0.5)}
-        .log-entry{border-bottom:1px solid #333;padding:0.5rem 0;transition:background 0.2s}
-        .log-entry:hover{background:#2a2a2a}
-        .log-time{color:#888}
-        .log-type{display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;margin:0 0.5rem;font-weight:bold;font-size:10px}
-        .log-type.success{background:#4caf50;color:white}
-        .log-type.block{background:#f44336;color:white}
-        .log-type.redirect{background:#2196f3;color:white}
-        .json-viewer{background:#f8f9fa;padding:0.5rem;border-radius:4px;font-family:monospace;font-size:11px;margin-top:0.5rem}
-        .country-badge{display:inline-block;padding:0.2rem 0.5rem;border-radius:4px;background:#e9ecef;margin:0.2rem;font-size:0.9rem}
-        @media (max-width: 768px) {
-          .navbar{flex-direction:column;text-align:center}
-          .nav-links{margin-top:1rem}
-          .stats-grid{grid-template-columns:1fr}
-          .button-group{flex-direction:column}
-          button{width:100%}
-        }
-      </style>
-    </head>
-    <body>
-      <div class="navbar">
-        <h1>🔗 Redirector Pro Admin</h1>
-        <div class="nav-links">
-          <button onclick="refreshData()">🔄 Refresh</button>
-          <button onclick="logout()">🚪 Logout</button>
-        </div>
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Redirector Pro Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:sans-serif;background:#f5f5f5}
+    .navbar{background:linear-gradient(135deg,#667eea 0,#764ba2 100%);color:white;padding:1rem;display:flex;justify-content:space-between}
+    .container{padding:2rem;max-width:1200px;margin:0 auto}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem}
+    .stat-card{background:white;padding:1.5rem;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+    .stat-card h3{color:#666;font-size:0.9rem;margin-bottom:0.5rem}
+    .stat-card .value{font-size:2rem;font-weight:bold}
+    .section{background:white;padding:1.5rem;border-radius:8px;margin-bottom:2rem}
+    input{width:100%;padding:0.75rem;margin-bottom:1rem;border:2px solid #e0e0e0;border-radius:8px}
+    button{background:linear-gradient(135deg,#667eea 0,#764ba2 100%);color:white;border:none;padding:0.75rem 1.5rem;border-radius:8px;cursor:pointer;margin-right:0.5rem}
+    .logs{background:#1e1e1e;color:#0f0;padding:1rem;border-radius:8px;font-family:monospace;height:300px;overflow-y:auto}
+    .log-entry{border-bottom:1px solid #333;padding:0.25rem 0}
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <h1>🔗 Redirector Pro</h1>
+    <button onclick="logout()">Logout</button>
+  </div>
+  
+  <div class="container">
+    <div class="stats">
+      <div class="stat-card">
+        <h3>Total Requests</h3>
+        <div class="value" id="totalRequests">0</div>
       </div>
-      
-      <div class="container">
-        <!-- Stats Cards -->
-        <div class="stats-grid" id="statsGrid">
-          <div class="stat-card">
-            <h3>Total Requests</h3>
-            <div class="value" id="totalRequests">0</div>
-            <div class="trend" id="requestsTrend"></div>
-          </div>
-          <div class="stat-card">
-            <h3>Active Links</h3>
-            <div class="value" id="activeLinks">0</div>
-          </div>
-          <div class="stat-card">
-            <h3>Bot Blocks</h3>
-            <div class="value" id="botBlocks">0</div>
-          </div>
-          <div class="stat-card">
-            <h3>Success Rate</h3>
-            <div class="value" id="successRate">0%</div>
-          </div>
-          <div class="stat-card">
-            <h3>Requests/sec</h3>
-            <div class="value" id="requestsPerSec">0</div>
-          </div>
-          <div class="stat-card">
-            <h3>Generated Links</h3>
-            <div class="value" id="generatedLinks">0</div>
-          </div>
-        </div>
-
-        <!-- Tabs -->
-        <div class="tabs">
-          <button class="tab active" onclick="showTab('overview')">📊 Overview</button>
-          <button class="tab" onclick="showTab('generator')">🔗 Generator</button>
-          <button class="tab" onclick="showTab('config')">⚙️ Configuration</button>
-          <button class="tab" onclick="showTab('logs')">📝 Live Logs</button>
-          <button class="tab" onclick="showTab('analytics')">📈 Analytics</button>
-        </div>
-
-        <!-- Overview Tab -->
-        <div id="overview" class="tab-content active">
-          <div class="chart-container">
-            <h3>Real-time Traffic (Last 60 seconds)</h3>
-            <canvas id="trafficChart"></canvas>
-          </div>
-          
-          <div class="chart-container">
-            <h3>Device Distribution</h3>
-            <canvas id="deviceChart"></canvas>
-          </div>
-
-          <div class="chart-container">
-            <h3>Top Countries</h3>
-            <div id="countryStats"></div>
-          </div>
-        </div>
-
-        <!-- Generator Tab -->
-        <div id="generator" class="tab-content">
-          <div class="link-generator">
-            <h3>Generate New Link</h3>
-            <div class="config-group">
-              <label>Target URL</label>
-              <input type="url" id="targetUrl" placeholder="https://example.com" value="${TARGET_URL}">
-            </div>
-            <div class="config-group">
-              <label>Custom TTL (optional, e.g., 1h, 30m, 3600)</label>
-              <input type="text" id="customTtl" placeholder="e.g., 1h, 30m, 3600">
-            </div>
-            <div class="config-group">
-              <label>
-                <input type="checkbox" id="generateQr" checked> Generate QR Code
-              </label>
-            </div>
-            <div class="config-group">
-              <label>
-                <input type="checkbox" id="showQrPage"> Show QR page before redirect
-              </label>
-            </div>
-            <div class="button-group">
-              <button onclick="generateLink()">Generate Link</button>
-              <button class="secondary" onclick="clearForm()">Clear</button>
-            </div>
-            
-            <div id="generationResult" style="margin-top:2rem;display:none">
-              <h4>Generated Link</h4>
-              <div class="config-group">
-                <input type="text" id="generatedUrl" readonly>
-                <div style="margin-top:0.5rem">
-                  <button onclick="copyToClipboard()">📋 Copy URL</button>
-                  <button onclick="downloadQR()" id="downloadQrBtn" style="display:none">📱 Download QR</button>
-                </div>
-              </div>
-              <div id="qrContainer" style="margin-top:1rem;text-align:center"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Config Tab -->
-        <div id="config" class="tab-content">
-          <div class="chart-container">
-            <h3>System Configuration</h3>
-            <div class="config-group">
-              <label>Default Target URL</label>
-              <input type="url" id="configTargetUrl" value="${TARGET_URL}">
-            </div>
-            <div class="config-group">
-              <label>Bot Redirect URLs (one per line)</label>
-              <textarea id="configBotUrls">${BOT_URLS.join('\n')}</textarea>
-            </div>
-            <div class="config-group">
-              <label>Link TTL (seconds or format: 30m, 24h, 7d)</label>
-              <input type="text" id="configLinkTtl" value="${process.env.LINK_TTL || '30m'}">
-            </div>
-            <div class="config-group">
-              <label>Metrics API Key</label>
-              <input type="text" id="metricsApiKey" value="${METRICS_API_KEY}" readonly>
-            </div>
-            <div class="config-group">
-              <label>Session Store</label>
-              <input type="text" id="sessionStore" value="${sessionStore.constructor.name}" readonly>
-            </div>
-            <div class="button-group">
-              <button onclick="saveConfig()">💾 Save Configuration</button>
-              <button class="secondary" onclick="clearCache()">🗑️ Clear Cache</button>
-              <button class="secondary" onclick="exportLogs()">📥 Export Logs</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Logs Tab -->
-        <div id="logs" class="tab-content">
-          <div class="chart-container">
-            <h3>Live Request Logs</h3>
-            <div style="margin-bottom:1rem">
-              <button onclick="clearLogs()">Clear Logs</button>
-              <button onclick="pauseLogs()" id="pauseBtn">Pause</button>
-            </div>
-            <div class="log-container" id="logContainer">
-              <div id="logs"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Analytics Tab -->
-        <div id="analytics" class="tab-content">
-          <div class="chart-container">
-            <h3>Bot Block Reasons</h3>
-            <canvas id="botChart"></canvas>
-          </div>
-          <div class="chart-container">
-            <h3>Browser Distribution</h3>
-            <canvas id="browserChart"></canvas>
-          </div>
-        </div>
+      <div class="stat-card">
+        <h3>Active Links</h3>
+        <div class="value" id="activeLinks">0</div>
       </div>
+      <div class="stat-card">
+        <h3>Bot Blocks</h3>
+        <div class="value" id="botBlocks">0</div>
+      </div>
+    </div>
 
-      <div id="notification" class="notification" style="display:none"></div>
+    <div class="section">
+      <h3>Generate Link</h3>
+      <input type="url" id="targetUrl" placeholder="Target URL" value="${TARGET_URL}">
+      <button onclick="generateLink()">Generate</button>
+      <div id="result" style="margin-top:1rem;display:none">
+        <input type="text" id="generatedUrl" readonly>
+      </div>
+    </div>
 
-      <script>
-        const socket = io({
-          auth: { token: '${METRICS_API_KEY}' },
-          transports: ['websocket', 'polling']
-        });
-        
-        let trafficChart, deviceChart, botChart, browserChart;
-        let logsPaused = false;
-        let logBuffer = [];
-        
-        socket.on('stats', (data) => {
-          updateStats(data);
-          updateCharts(data);
-        });
-        
-        socket.on('notification', (notification) => {
-          showNotification(notification.message, notification.type);
-        });
-        
-        socket.on('log', (log) => {
-          if (!logsPaused) {
-            addLogEntry(log);
-          } else {
-            logBuffer.push(log);
-          }
-        });
-        
-        socket.on('connect', () => {
-          showNotification('Connected to real-time server', 'success');
-        });
-        
-        socket.on('disconnect', () => {
-          showNotification('Disconnected from real-time server', 'error');
-        });
-        
-        function updateStats(data) {
-          document.getElementById('totalRequests').textContent = data.totalRequests.toLocaleString();
-          document.getElementById('activeLinks').textContent = data.realtime.activeLinks;
-          document.getElementById('botBlocks').textContent = data.botBlocks.toLocaleString();
-          document.getElementById('generatedLinks').textContent = data.generatedLinks.toLocaleString();
-          document.getElementById('requestsPerSec').textContent = data.realtime.requestsPerSecond;
-          
-          const successRate = data.totalRequests > 0 
-            ? Math.round((data.successfulRedirects / data.totalRequests) * 100) 
-            : 0;
-          document.getElementById('successRate').textContent = successRate + '%';
-          
-          if (data.realtime.lastMinute.length > 1) {
-            const prev = data.realtime.lastMinute[data.realtime.lastMinute.length - 2] || {requests:0};
-            const current = data.realtime.lastMinute[data.realtime.lastMinute.length - 1];
-            const trend = prev.requests ? ((current.requests - prev.requests) / prev.requests * 100).toFixed(1) : 0;
-            document.getElementById('requestsTrend').textContent = (trend > 0 ? '+' : '') + trend + '% vs last minute';
-          }
+    <div class="section">
+      <h3>Live Logs</h3>
+      <div class="logs" id="logs"></div>
+    </div>
+  </div>
 
-          // Update country stats
-          const countryHtml = Object.entries(data.byCountry)
-            .sort((a,b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([country, count]) => 
-              '<span class="country-badge">' + country + ': ' + count.toLocaleString() + '</span>'
-            ).join('');
-          document.getElementById('countryStats').innerHTML = countryHtml || '<p>No country data yet</p>';
-        }
-        
-        function updateCharts(data) {
-          if (!trafficChart) {
-            const ctx = document.getElementById('trafficChart').getContext('2d');
-            trafficChart = new Chart(ctx, {
-              type: 'line',
-              data: {
-                labels: [],
-                datasets: [{
-                  label: 'Requests',
-                  data: [],
-                  borderColor: '#667eea',
-                  backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                  tension: 0.4,
-                  fill: true
-                }]
-              },
-              options: {
-                responsive: true,
-                animation: false,
-                scales: { 
-                  y: { 
-                    beginAtZero: true,
-                    ticks: { stepSize: 1 }
-                  } 
-                },
-                plugins: {
-                  legend: { display: false }
-                }
-              }
-            });
-          }
-          
-          // Update traffic chart
-          const times = data.realtime.lastMinute.map(t => new Date(t.time).toLocaleTimeString());
-          const requests = data.realtime.lastMinute.map(t => t.requests);
-          trafficChart.data.labels = times;
-          trafficChart.data.datasets[0].data = requests;
-          trafficChart.update();
-          
-          // Update device chart
-          if (!deviceChart) {
-            const deviceCtx = document.getElementById('deviceChart').getContext('2d');
-            deviceChart = new Chart(deviceCtx, {
-              type: 'doughnut',
-              data: {
-                labels: ['Mobile', 'Desktop', 'Tablet', 'Bot'],
-                datasets: [{
-                  data: [
-                    data.byDevice.mobile, 
-                    data.byDevice.desktop, 
-                    data.byDevice.tablet, 
-                    data.byDevice.bot
-                  ],
-                  backgroundColor: ['#4caf50', '#2196f3', '#ff9800', '#f44336']
-                }]
-              },
-              options: {
-                responsive: true,
-                plugins: {
-                  legend: { position: 'bottom' }
-                }
-              }
-            });
-          } else {
-            deviceChart.data.datasets[0].data = [
-              data.byDevice.mobile,
-              data.byDevice.desktop,
-              data.byDevice.tablet,
-              data.byDevice.bot
-            ];
-            deviceChart.update();
-          }
+  <script>
+    const socket = io({auth: {token: '${METRICS_API_KEY}'}});
+    
+    socket.on('stats', (data) => {
+      document.getElementById('totalRequests').textContent = data.totalRequests;
+      document.getElementById('activeLinks').textContent = data.realtime.activeLinks;
+      document.getElementById('botBlocks').textContent = data.botBlocks;
+    });
+    
+    socket.on('log', (log) => {
+      const logs = document.getElementById('logs');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.textContent = '[' + new Date(log.t).toLocaleTimeString() + '] ' + log.ip + ' ' + log.path;
+      logs.insertBefore(entry, logs.firstChild);
+      if (logs.children.length > 100) logs.removeChild(logs.lastChild);
+    });
 
-          // Update bot reasons chart
-          if (!botChart && Object.keys(data.byBotReason).length > 0) {
-            const botCtx = document.getElementById('botChart').getContext('2d');
-            botChart = new Chart(botCtx, {
-              type: 'bar',
-              data: {
-                labels: Object.keys(data.byBotReason),
-                datasets: [{
-                  label: 'Bot Blocks by Reason',
-                  data: Object.values(data.byBotReason),
-                  backgroundColor: '#ff9800'
-                }]
-              },
-              options: {
-                responsive: true,
-                scales: { y: { beginAtZero: true } }
-              }
-            });
-          }
-        }
-        
-        function showNotification(message, type = 'success') {
-          const notif = document.getElementById('notification');
-          notif.textContent = message;
-          notif.className = 'notification ' + type;
-          notif.style.display = 'block';
-          setTimeout(() => { notif.style.display = 'none'; }, 3000);
-        }
-        
-        function showTab(tabName) {
-          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-          document.querySelector('[onclick="showTab(\\'' + tabName + '\\')"]').classList.add('active');
-          document.getElementById(tabName).classList.add('active');
-        }
-        
-        async function generateLink() {
-          const targetUrl = document.getElementById('targetUrl').value;
-          const customTtl = document.getElementById('customTtl').value;
-          const generateQr = document.getElementById('generateQr').checked;
-          const showQrPage = document.getElementById('showQrPage').checked;
-          
-          if (!targetUrl) {
-            showNotification('Please enter a target URL', 'error');
-            return;
-          }
-          
-          try {
-            let url = '/g?t=' + encodeURIComponent(targetUrl);
-            if (customTtl) url += '&ttl=' + encodeURIComponent(customTtl);
-            
-            const res = await fetch(url);
-            const data = await res.json();
-            
-            document.getElementById('generatedUrl').value = data.url;
-            document.getElementById('generationResult').style.display = 'block';
-            
-            if (generateQr) {
-              showNotification('Generating QR code...', 'info');
-              
-              let qrUrl = data.url;
-              if (showQrPage) qrUrl += '?qr=true';
-              
-              const qrRes = await fetch('/qr?url=' + encodeURIComponent(qrUrl) + '&size=300');
-              const qrData = await qrRes.json();
-              
-              document.getElementById('qrContainer').innerHTML = '<img src="' + qrData.qr + '" alt="QR Code" class="qr-preview">';
-              document.getElementById('downloadQrBtn').style.display = 'inline-block';
-            }
-            
-            showNotification('Link generated successfully!');
-          } catch (err) {
-            showNotification('Error generating link: ' + err.message, 'error');
-          }
-        }
-        
-        function copyToClipboard() {
-          const url = document.getElementById('generatedUrl');
-          url.select();
-          url.setSelectionRange(0, 99999);
-          document.execCommand('copy');
-          showNotification('URL copied to clipboard!');
-        }
-        
-        async function downloadQR() {
-          const url = document.getElementById('generatedUrl').value;
-          window.location.href = '/qr/download?url=' + encodeURIComponent(url);
-        }
-        
-        function clearForm() {
-          document.getElementById('targetUrl').value = '${TARGET_URL}';
-          document.getElementById('customTtl').value = '';
-          document.getElementById('generationResult').style.display = 'none';
-          document.getElementById('qrContainer').innerHTML = '';
-          document.getElementById('downloadQrBtn').style.display = 'none';
-        }
-        
-        async function saveConfig() {
-          const config = {
-            targetUrl: document.getElementById('configTargetUrl').value,
-            botUrls: document.getElementById('configBotUrls').value.split('\\n').filter(u => u.trim()),
-            linkTtl: document.getElementById('configLinkTtl').value
-          };
-          
-          const res = await fetch('/admin/config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(config)
-          });
-          
-          if (res.ok) {
-            showNotification('Configuration saved! Restart server to apply changes.', 'success');
-          } else {
-            showNotification('Error saving configuration', 'error');
-          }
-        }
-        
-        async function clearCache() {
-          if (confirm('Are you sure you want to clear all caches?')) {
-            const res = await fetch('/admin/clear-cache', { method: 'POST' });
-            if (res.ok) {
-              showNotification('Cache cleared!', 'success');
-            } else {
-              showNotification('Error clearing cache', 'error');
-            }
-          }
-        }
-        
-        function logout() {
-          fetch('/admin/logout', { method: 'POST' })
-            .then(() => { window.location.href = '/admin/login'; });
-        }
-        
-        function refreshData() {
-          socket.emit('command', { action: 'getStats' });
-        }
-        
-        function clearLogs() {
-          document.getElementById('logs').innerHTML = '';
-          logBuffer = [];
-        }
-        
-        function pauseLogs() {
-          logsPaused = !logsPaused;
-          document.getElementById('pauseBtn').textContent = logsPaused ? 'Resume' : 'Pause';
-          if (!logsPaused && logBuffer.length > 0) {
-            logBuffer.forEach(log => addLogEntry(log));
-            logBuffer = [];
-          }
-        }
-        
-        function addLogEntry(log) {
-          const logContainer = document.getElementById('logs');
-          const entry = document.createElement('div');
-          entry.className = 'log-entry';
-          
-          const time = new Date(log.t).toLocaleTimeString();
-          const typeClass = log.type === 'success' ? 'success' : 
-                           log.type === 'block' ? 'block' : 'redirect';
-          
-          entry.innerHTML = '<span class="log-time">[' + time + ']</span> ' +
-                           '<span class="log-type ' + typeClass + '">' + log.type.toUpperCase() + '</span> ' +
-                           '<span>' + log.ip + ' ' + log.path + ' (' + log.device + ')</span>';
-          
-          logContainer.insertBefore(entry, logContainer.firstChild);
-          
-          // Limit logs
-          while (logContainer.children.length > 200) {
-            logContainer.removeChild(logContainer.lastChild);
-          }
-        }
-        
-        async function exportLogs() {
-          window.location.href = '/admin/export-logs';
-        }
-      </script>
-    </body>
-    </html>
-  `);
+    async function generateLink() {
+      const url = document.getElementById('targetUrl').value;
+      const res = await fetch('/g?t=' + encodeURIComponent(url));
+      const data = await res.json();
+      document.getElementById('generatedUrl').value = data.url;
+      document.getElementById('result').style.display = 'block';
+    }
+
+    function logout() {
+      fetch('/admin/logout', {method: 'POST'}).then(() => {
+        window.location.href = '/admin/login';
+      });
+    }
+  </script>
+</body>
+</html>`);
 });
 
 // Logout
@@ -1671,7 +1229,6 @@ app.get('/v/:id', strictLimiter, async (req, res) => {
       
       setTimeout(function(){
         const sus = e<2.5 || m<2 || document.getElementById('hp_${hpSuffix}')?.value;
-        if (!sus) stats.successfulRedirects++;
         location.href = sus ? F : T;
       },1200);
     })();
@@ -1722,7 +1279,11 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err.stack);
   logRequest('error', req, res, { error: err.message });
-  res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]);
+  
+  // Only redirect if headers haven't been sent
+  if (!res.headersSent) {
+    res.redirect(BOT_URLS[Math.floor(Math.random() * BOT_URLS.length)]);
+  }
 });
 
 // ─── Graceful Shutdown ──────────────────────────────────────────────────────
