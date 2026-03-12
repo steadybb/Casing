@@ -36,6 +36,11 @@ const slowDown = require("express-slow-down");
 const Redis = require('ioredis');
 const createRedisStore = require('connect-redis').default;
 
+// Bull Board imports - FIXED
+const { createBullBoard } = require('@bull-board/api');
+const { BullAdapter } = require('@bull-board/api/bullAdapter');
+const { ExpressAdapter } = require('@bull-board/express');
+
 // Load environment variables
 dotenv.config();
 
@@ -65,7 +70,9 @@ const configSchema = Joi.object({
   ALERT_EMAIL: Joi.string().email().optional(),
   DISABLE_DESKTOP_CHALLENGE: Joi.boolean().default(false),
   HTTPS_ENABLED: Joi.boolean().default(false),
-  DEBUG: Joi.boolean().default(false)
+  DEBUG: Joi.boolean().default(false),
+  BULL_BOARD_ENABLED: Joi.boolean().default(true),
+  BULL_BOARD_PATH: Joi.string().default('/admin/queues')
 });
 
 const { error: configError, value: validatedConfig } = configSchema.validate(process.env, {
@@ -180,11 +187,40 @@ if (validatedConfig.REDIS_URL || validatedConfig.REDIS_HOST) {
 let redirectQueue;
 let emailQueue;
 let analyticsQueue;
+let serverAdapter;
+let bullBoard;
 
 if (redisClient) {
-  redirectQueue = new Queue('redirect processing', { redis: redisClient });
-  emailQueue = new Queue('email sending', { redis: redisClient });
-  analyticsQueue = new Queue('analytics processing', { redis: redisClient });
+  redirectQueue = new Queue('redirect processing', { 
+    redis: redisClient,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 2000
+      },
+      removeOnComplete: 100,
+      removeOnFail: 200
+    }
+  });
+  
+  emailQueue = new Queue('email sending', { 
+    redis: redisClient,
+    defaultJobOptions: {
+      attempts: 5,
+      backoff: 2000,
+      removeOnComplete: 50
+    }
+  });
+  
+  analyticsQueue = new Queue('analytics processing', { 
+    redis: redisClient,
+    defaultJobOptions: {
+      attempts: 2,
+      removeOnComplete: 1000,
+      removeOnFail: 500
+    }
+  });
 
   // Queue processors
   redirectQueue.process(async (job) => {
@@ -198,6 +234,7 @@ if (redisClient) {
       deviceInfo,
       timestamp: new Date()
     });
+    return { success: true };
   });
 
   emailQueue.process(async (job) => {
@@ -205,14 +242,45 @@ if (redisClient) {
     // Send email asynchronously
     if (validatedConfig.SMTP_HOST) {
       // Implement email sending logic
+      logger.info(`Email would be sent to ${to} with subject: ${subject}`);
+      return { sent: true };
     }
+    return { sent: false, reason: 'SMTP not configured' };
   });
 
   analyticsQueue.process(async (job) => {
     const { type, data } = job.data;
     // Process analytics asynchronously
     await updateAnalytics(type, data);
+    return { processed: true };
   });
+
+  // ─── Bull Board Setup (FIXED) ─────────────────────────────────────────────
+  if (validatedConfig.BULL_BOARD_ENABLED) {
+    serverAdapter = new ExpressAdapter();
+    serverAdapter.setBasePath(validatedConfig.BULL_BOARD_PATH);
+    
+    bullBoard = createBullBoard({
+      queues: [
+        new BullAdapter(redirectQueue),
+        new BullAdapter(emailQueue),
+        new BullAdapter(analyticsQueue)
+      ],
+      serverAdapter: serverAdapter,
+      options: {
+        uiConfig: {
+          boardTitle: 'Redirector Pro Queues',
+          boardLogo: {
+            path: 'https://cdn.jsdelivr.net/npm/heroicons@1.0.6/outline/clock.svg',
+            width: 30,
+            height: 30
+          }
+        }
+      }
+    });
+    
+    logger.info(`✅ Bull Board enabled at ${validatedConfig.BULL_BOARD_PATH}`);
+  }
 }
 
 // ─── Database Connection ─────────────────────────────────────────────────────
@@ -353,6 +421,20 @@ const csrfProtection = csrf({
     sameSite: 'lax'
   }
 });
+
+// ─── Bull Board Middleware (FIXED) ──────────────────────────────────────────
+if (serverAdapter && validatedConfig.BULL_BOARD_ENABLED) {
+  // Add authentication middleware for Bull Board
+  app.use(validatedConfig.BULL_BOARD_PATH, (req, res, next) => {
+    if (!req.session.authenticated) {
+      return res.status(401).send('Unauthorized');
+    }
+    next();
+  });
+  
+  // Mount Bull Board router
+  app.use(validatedConfig.BULL_BOARD_PATH, serverAdapter.getRouter());
+}
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const TARGET_URL = validatedConfig.TARGET_URL;
@@ -600,7 +682,8 @@ function getDeviceInfo(req) {
     'headless', 'phantom', 'slurp', 'zgrab', 'scanner', 'bot', 'crawler', 
     'spider', 'burp', 'sqlmap', 'curl', 'wget', 'python', 'perl', 'ruby', 
     'go-http-client', 'java', 'okhttp', 'scrapy', 'httpclient', 'axios',
-    'node-fetch', 'php', 'libwww', 'wget', 'fetch', 'ahrefs', 'semrush'
+    'node-fetch', 'php', 'libwww', 'wget', 'fetch', 'ahrefs', 'semrush',
+    'puppeteer', 'selenium', 'playwright', 'cypress'
   ];
   
   if (botPatterns.some(pattern => uaLower.includes(pattern))) {
@@ -682,7 +765,9 @@ app.use((req, res, next) => {
   totalRequests.inc();
   stats.totalRequests++;
   
-  analyticsQueue?.add({ type: 'request', data: { id: req.id, device: req.deviceInfo.type } });
+  if (analyticsQueue) {
+    analyticsQueue.add({ type: 'request', data: { id: req.id, device: req.deviceInfo.type } });
+  }
   
   next();
 });
@@ -793,7 +878,9 @@ function isLikelyBot(req) {
   if (deviceInfo.isBot) {
     stats.botBlocks++;
     botBlocks.inc();
-    analyticsQueue?.add({ type: 'bot', data: { reason: 'explicit_bot' } });
+    if (analyticsQueue) {
+      analyticsQueue.add({ type: 'bot', data: { reason: 'explicit_bot' } });
+    }
     return true;
   }
 
@@ -843,7 +930,9 @@ function isLikelyBot(req) {
     stats.botBlocks++;
     botBlocks.inc();
     reasons.forEach(r => stats.byBotReason[r] = (stats.byBotReason[r] || 0) + 1);
-    analyticsQueue?.add({ type: 'bot', data: { score, reasons } });
+    if (analyticsQueue) {
+      analyticsQueue.add({ type: 'bot', data: { score, reasons } });
+    }
   }
   
   if (validatedConfig.DEBUG) {
@@ -935,7 +1024,12 @@ app.get(['/ping','/health','/healthz','/status'], (req, res) => {
       botBlocks: stats.botBlocks
     },
     database: dbPool ? 'connected' : 'disabled',
-    redis: redisClient?.status === 'ready' ? 'connected' : 'disabled'
+    redis: redisClient?.status === 'ready' ? 'connected' : 'disabled',
+    queues: {
+      redirect: redirectQueue ? 'ready' : 'disabled',
+      email: emailQueue ? 'ready' : 'disabled',
+      analytics: analyticsQueue ? 'ready' : 'disabled'
+    }
   };
   res.status(200).json(healthData);
 });
@@ -1043,7 +1137,9 @@ app.post('/api/generate', [
     io.emit('link-generated', response);
     logRequest('generate', req, res, { id });
     
-    analyticsQueue?.add({ type: 'generate', data: { id, passwordProtected: !!password } });
+    if (analyticsQueue) {
+      analyticsQueue.add({ type: 'generate', data: { id, passwordProtected: !!password } });
+    }
     
     res.json(response);
   } catch (err) {
@@ -1105,7 +1201,9 @@ app.get('/api/stats/:id', async (req, res, next) => {
 app.post('/track/success', (req, res) => {
   stats.successfulRedirects++;
   logRequest('success', req, res);
-  analyticsQueue?.add({ type: 'success', data: { id: req.id } });
+  if (analyticsQueue) {
+    analyticsQueue.add({ type: 'success', data: { id: req.id } });
+  }
   res.json({ ok: true });
 });
 
@@ -1188,8 +1286,8 @@ app.get('/v/:id', strictLimiter, async (req, res, next) => {
     logRequest('redirect', req, res, { target: data.target.substring(0, 50) });
 
     // Track click in database
-    if (dbPool) {
-      redirectQueue?.add({
+    if (dbPool && redirectQueue) {
+      redirectQueue.add({
         linkId,
         ip,
         userAgent: req.headers['user-agent'],
@@ -1223,7 +1321,7 @@ app.get('/v/:id', strictLimiter, async (req, res, next) => {
             <button onclick="verify()">Access Link</button>
             <div class="error" id="error">Invalid password</div>
           </div>
-          <script>
+          <script nonce="${res.locals.nonce}">
             async function verify() {
               const password = document.getElementById('password').value;
               const res = await fetch('/v/${linkId}/verify', {
@@ -1269,7 +1367,7 @@ app.get('/v/:id', strictLimiter, async (req, res, next) => {
             <p>Or continue to website...</p>
             <div class="countdown">Redirecting in <span id="countdown">5</span> seconds</div>
           </div>
-          <script>
+          <script nonce="${res.locals.nonce}">
             let time = 5;
             const interval = setInterval(() => {
               time--;
@@ -1617,6 +1715,7 @@ app.get('/admin', (req, res, next) => {
       <span class="tab" onclick="showTab('analytics')">📈 Analytics</span>
       <span class="tab" onclick="showTab('logs')">📋 Live Logs</span>
       <span class="tab" onclick="showTab('settings')">⚙️ Settings</span>
+      ${redisClient ? '<span class="tab" onclick="window.location.href=\'' + validatedConfig.BULL_BOARD_PATH + '\'">⏱️ Queues</span>' : ''}
     </div>
 
     <div id="dashboard" class="tab-content active">
@@ -1919,7 +2018,7 @@ app.get('/admin', (req, res, next) => {
       const uptime = Math.floor(process.uptime());
       const hours = Math.floor(uptime / 3600);
       const minutes = Math.floor((uptime % 3600) / 60);
-      document.getElementById('uptime').textContent = `Uptime: ${hours}h ${minutes}m`;
+      document.getElementById('uptime').textContent = \`Uptime: \${hours}h \${minutes}m\`;
     }, 1000);
   </script>
 </body>
@@ -2067,6 +2166,9 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  💾 Database: ${dbPool ? 'Connected' : 'Disabled'}`);
   console.log(`  🔄 Redis: ${redisClient?.status === 'ready' ? 'Connected' : 'Disabled'}`);
   console.log(`  📨 Queues: ${redirectQueue ? 'Enabled' : 'Disabled'}`);
+  if (serverAdapter && validatedConfig.BULL_BOARD_ENABLED) {
+    console.log(`  📊 Bull Board: http://localhost:${PORT}${validatedConfig.BULL_BOARD_PATH}`);
+  }
   console.log('='.repeat(70) + '\n');
   
   // Log startup
