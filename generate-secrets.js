@@ -135,9 +135,8 @@ function generatePasswordHash(password, rounds = 12) {
   return bcrypt.hashSync(password, rounds);
 }
 
-// FIXED: generateOTPSecret - removed base32 encoding
 function generateOTPSecret() {
-  // Generate a random 20-byte secret and return as hex instead of base32
+  // Generate a random 20-byte secret and return as hex
   return crypto.randomBytes(20).toString('hex');
 }
 
@@ -375,12 +374,7 @@ function writeEnvFile(env, filePath = ENV_FILE, force = false) {
       content += `\n# ─── ${sectionName} ${'─'.repeat(Math.max(0, 60 - sectionName.length - 8))}\n`;
       sectionVars.forEach(key => {
         const value = env[key];
-        // Mask sensitive values if needed
-        if (key.includes('PASSWORD') || key.includes('SECRET') || key.includes('KEY') || key.includes('TOKEN')) {
-          content += `${key}=${value}\n`;
-        } else {
-          content += `${key}=${value}\n`;
-        }
+        content += `${key}=${value}\n`;
       });
     }
   });
@@ -464,7 +458,7 @@ DB_POOL_MAX=10
 DB_IDLE_TIMEOUT=30000
 
 # ─── REDIS CONFIGURATION ──────────────────────────────────────────────────
-REDIS_URL=redis://default:password@localhost:6379
+REDIS_URL=redis://:password@localhost:6379/0
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=your-redis-password
@@ -593,6 +587,7 @@ async function promptForVar(varName, defaultValue = '', description = '') {
   });
 }
 
+// FIXED: Redis URL generation with proper encoding
 async function promptForRedis() {
   log('cyan', '\n📀 Configuring Redis (optional)...');
   const env = {};
@@ -600,18 +595,17 @@ async function promptForRedis() {
   env.REDIS_HOST = await promptForVar('REDIS_HOST', 'localhost');
   env.REDIS_PORT = await promptForVar('REDIS_PORT', '6379');
   env.REDIS_DB = await promptForVar('REDIS_DB', '0');
+  env.REDIS_PREFIX = await promptForVar('REDIS_PREFIX', 'redirector:');
   
   const usePassword = await promptForVar('Set Redis password?', 'yes');
   if (usePassword.toLowerCase().startsWith('y')) {
     env.REDIS_PASSWORD = generateRedisPassword();
     log('green', `✅ Generated Redis password: ${env.REDIS_PASSWORD}`);
-  }
-  
-  env.REDIS_PREFIX = await promptForVar('REDIS_PREFIX', 'redirector:');
-  
-  // Generate Redis URL
-  if (env.REDIS_PASSWORD) {
-    env.REDIS_URL = `redis://default:${env.REDIS_PASSWORD}@${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`;
+    
+    // FIXED: URL-encode the password and use correct format (without 'default:')
+    const encodedPassword = encodeURIComponent(env.REDIS_PASSWORD);
+    env.REDIS_URL = `redis://:${encodedPassword}@${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`;
+    log('green', `✅ Redis URL generated with encoded password`);
   } else {
     env.REDIS_URL = `redis://${env.REDIS_HOST}:${env.REDIS_PORT}/${env.REDIS_DB}`;
   }
@@ -635,8 +629,9 @@ async function promptForPostgres() {
   env.DB_POOL_MAX = await promptForVar('DB_POOL_MAX', '10');
   env.DB_IDLE_TIMEOUT = await promptForVar('DB_IDLE_TIMEOUT', '30000');
   
-  // Generate DATABASE_URL
-  env.DATABASE_URL = `postgresql://${env.DB_USER}:${env.DB_PASSWORD}@${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}`;
+  // URL-encode the password for DATABASE_URL
+  const encodedPassword = encodeURIComponent(env.DB_PASSWORD);
+  env.DATABASE_URL = `postgresql://${env.DB_USER}:${encodedPassword}@${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}`;
   
   return env;
 }
@@ -769,7 +764,7 @@ async function main() {
     apiKey: generateAPIKey(),
     webhookSecret: generateWebhookSecret(),
     salt: generateSalt(),
-    otpSecret: generateOTPSecret() // FIXED: Now returns hex instead of base32
+    otpSecret: generateOTPSecret()
   };
   
   // Get password and generate hash
@@ -870,7 +865,6 @@ async function main() {
   
   // Encrypt secrets if requested
   if (encryptSecrets && env.ENCRYPTION_KEY) {
-    const encrypted = {};
     const sensitiveKeys = ['DB_PASSWORD', 'REDIS_PASSWORD', 'SMTP_PASS', 'WEBHOOK_SECRET'];
     
     sensitiveKeys.forEach(key => {
