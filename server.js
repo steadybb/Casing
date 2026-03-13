@@ -877,12 +877,34 @@ app.use(responseTime((req, res, time) => {
   }
 }));
 
+// Update helmet CSP to allow Google Fonts and other resources
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.nonce}'`, 'https://cdn.socket.io', 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com'],
+      scriptSrc: [
+        "'self'", 
+        (req, res) => `'nonce-${res.locals.nonce}'`, 
+        'https://cdn.socket.io', 
+        'https://cdn.jsdelivr.net', 
+        'https://cdnjs.cloudflare.com',
+        'https://fonts.googleapis.com',
+        'https://fonts.gstatic.com'
+      ],
+      styleSrc: [
+        "'self'", 
+        "'unsafe-inline'", 
+        'https://cdn.jsdelivr.net', 
+        'https://cdnjs.cloudflare.com',
+        'https://fonts.googleapis.com',
+        'https://fonts.gstatic.com'
+      ],
+      fontSrc: [
+        "'self'", 
+        'https://cdnjs.cloudflare.com', 
+        'https://fonts.gstatic.com',
+        'data:'
+      ],
       imgSrc: ["'self'", 'data:', 'https:'],
       connectSrc: ["'self'", 'ws:', 'wss:'],
       frameSrc: ["'none'"],
@@ -1931,15 +1953,29 @@ app.get('/admin/login', (req, res) => {
     const csrfToken = crypto.randomBytes(32).toString('hex');
     req.session.csrfToken = csrfToken;
     
+    // Generate nonce for CSP
+    const nonce = crypto.randomBytes(16).toString('hex');
+    
     try {
       // Read the login.html file
       const loginHtmlPath = path.join(__dirname, 'public', 'login.html');
       let html = await fs.readFile(loginHtmlPath, 'utf8');
       
-      // Inject the CSRF token into the HTML
-      html = html.replace(
-        '<input type="hidden" id="csrfToken" value="">',
-        `<input type="hidden" id="csrfToken" value="${csrfToken}">`
+      // Inject the CSRF token and nonce into the HTML
+      html = html
+        .replace(
+          '<input type="hidden" id="csrfToken" value="">',
+          `<input type="hidden" id="csrfToken" value="${csrfToken}">`
+        )
+        .replace(
+          '{{NONCE}}',
+          nonce
+        );
+      
+      // Set CSP with nonce for this response
+      res.setHeader(
+        'Content-Security-Policy',
+        `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.socket.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss:;`
       );
       
       res.send(html);
