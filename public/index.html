@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#6366f1">
   <meta name="color-scheme" content="light dark">
   <!-- Disable source maps to prevent CSP errors -->
-  <meta http-equiv="Content-Security-Policy" content="connect-src 'self' ws: wss:;">
+  <meta http-equiv="Content-Security-Policy" content="connect-src 'self' ws: wss: https://cdn.socket.io https://cdn.jsdelivr.net;">
   
   <!-- Fonts & Icons -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,7 +22,6 @@
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   
   <style>
-    /* Your existing CSS remains exactly the same */
     /* CSS Variables for Theming */
     :root {
       /* Colors */
@@ -668,31 +667,81 @@
     .status-dot.disconnected { background: var(--error-500); box-shadow: 0 0 0 2px var(--error-200); }
     .status-dot.warning { background: var(--warning-500); box-shadow: 0 0 0 2px var(--warning-200); }
     
-    /* Logs Container */
+    /* Logs Container - Enhanced for better visibility */
     .logs-container {
-      background: var(--neutral-900);
-      color: #22c55e;
+      background: #1a1b26;
+      color: #bb9af7;
       padding: var(--spacing-lg);
       border-radius: var(--radius-lg);
-      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
       font-size: var(--font-size-sm);
-      height: 400px;
+      height: 500px;
       overflow-y: auto;
       border: 1px solid var(--neutral-700);
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
     }
     
     .log-entry {
-      padding: var(--spacing-xs) 0;
-      border-bottom: 1px solid var(--neutral-700);
-      color: #4ade80;
+      padding: 6px 8px;
+      margin: 2px 0;
+      border-bottom: 1px solid #2a2b36;
+      color: #c0caf5;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+      transition: background 0.2s;
+      border-left: 3px solid transparent;
     }
     
     .log-entry:hover {
-      background: rgba(255, 255, 255, 0.05);
+      background: #2a2b36;
+      border-left-color: #7aa2f7;
     }
+    
+    .log-entry .timestamp {
+      color: #7dcfff;
+      font-weight: 500;
+    }
+    
+    .log-entry .ip {
+      color: #bb9af7;
+      font-weight: 500;
+    }
+    
+    .log-entry .method {
+      color: #9ece6a;
+      font-weight: 600;
+    }
+    
+    .log-entry .path {
+      color: #e0af68;
+    }
+    
+    .log-entry .device {
+      color: #ff9e64;
+    }
+    
+    .log-entry .duration {
+      color: #7aa2f7;
+    }
+    
+    .log-entry .type-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-right: 6px;
+    }
+    
+    .type-redirect { background: #2e7d32; color: white; }
+    .type-generate { background: #1565c0; color: white; }
+    .type-bot-block { background: #c62828; color: white; }
+    .type-rate-limit { background: #f57c00; color: white; }
+    .type-error { background: #d32f2f; color: white; }
+    .type-404 { background: #757575; color: white; }
     
     /* Modal */
     .modal {
@@ -828,70 +877,6 @@
     .alert-message {
       font-size: var(--font-size-sm);
       color: var(--neutral-600);
-    }
-    
-    /* Loading Skeleton */
-    .skeleton {
-      background: linear-gradient(
-        90deg,
-        var(--neutral-200) 25%,
-        var(--neutral-300) 50%,
-        var(--neutral-200) 75%
-      );
-      background-size: 200% 100%;
-      animation: loading 1.5s infinite;
-      border-radius: var(--radius-md);
-    }
-    
-    @keyframes loading {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-    
-    /* Toggle Switch */
-    .toggle {
-      position: relative;
-      display: inline-block;
-      width: 52px;
-      height: 28px;
-    }
-    
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    
-    .toggle-slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: var(--neutral-300);
-      transition: var(--transition-fast);
-      border-radius: var(--radius-full);
-    }
-    
-    .toggle-slider:before {
-      position: absolute;
-      content: "";
-      height: 20px;
-      width: 20px;
-      left: 4px;
-      bottom: 4px;
-      background-color: white;
-      transition: var(--transition-fast);
-      border-radius: 50%;
-    }
-    
-    input:checked + .toggle-slider {
-      background-color: var(--primary-600);
-    }
-    
-    input:checked + .toggle-slider:before {
-      transform: translateX(24px);
     }
     
     /* Responsive */
@@ -1388,7 +1373,7 @@
           </div>
         </div>
         
-        <!-- Live Logs Tab -->
+        <!-- Live Logs Tab - Enhanced -->
         <div id="logs" class="tab-content">
           <div class="section-card">
             <div class="section-header">
@@ -1408,10 +1393,22 @@
                 <label style="display: flex; align-items: center; gap: 0.5rem;">
                   <input type="checkbox" id="autoScroll" checked> Auto-scroll
                 </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                  <input type="checkbox" id="showTimestamps" checked> Show Timestamps
+                </label>
               </div>
             </div>
             
-            <div class="logs-container" id="logs"></div>
+            <div class="logs-container" id="logs">
+              <div class="log-entry" style="color: #7aa2f7; text-align: center;">
+                <i class="fas fa-circle-notch fa-spin"></i> Waiting for logs...
+              </div>
+            </div>
+            
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: flex-end;">
+              <span class="badge badge-info" id="logCount">0</span>
+              <span class="badge badge-info">Live Streaming</span>
+            </div>
           </div>
         </div>
         
@@ -1581,73 +1578,93 @@
     let requestsChart, deviceChart;
     let allLinks = [];
     let autoScroll = true;
+    let showTimestamps = true;
     let currentTimeRange = '5m';
+    let logCount = 0;
     
     // Initialize Socket.IO
     function initSocket() {
+      console.log('🔌 Initializing Socket.IO connection...');
+      
       socket = io({
         auth: { token: METRICS_API_KEY },
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 10,
         reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000
+        reconnectionDelayMax: 5000,
+        timeout: 20000
       });
       
       socket.on('connect', () => {
-        console.log('Socket connected');
+        console.log('✅ Socket connected successfully');
         showAlert('Real-time monitoring connected', 'success');
         updateSocketStatus('connected');
+        
+        // Request initial data
+        socket.emit('command', { action: 'getStats' });
+        socket.emit('command', { action: 'getLinks' });
       });
       
-      socket.on('disconnect', () => {
-        console.log('Socket disconnected');
+      socket.on('disconnect', (reason) => {
+        console.log('❌ Socket disconnected:', reason);
         showAlert('Real-time monitoring disconnected', 'error');
         updateSocketStatus('disconnected');
       });
       
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        showAlert('Socket connection error', 'error');
+      });
+      
       socket.on('stats', (data) => {
+        console.log('📊 Stats received:', data);
         updateStats(data);
         updateCharts(data);
         updateCountryStats(data.byCountry);
         updateCacheStats(data.caches);
       });
       
+      // ENHANCED: Log handler with better formatting
       socket.on('log', (log) => {
+        console.log('📝 Log received:', log);
         addLogEntry(log);
       });
       
-      socket.on('link-generated', () => {
+      socket.on('link-generated', (data) => {
+        console.log('🔗 Link generated:', data);
         showAlert('New link generated', 'info');
         refreshLinks();
       });
       
       socket.on('link-deleted', () => {
+        console.log('🗑️ Link deleted');
         refreshLinks();
       });
       
       socket.on('link-updated', () => {
+        console.log('✏️ Link updated');
         refreshLinks();
       });
       
       socket.on('links', (links) => {
+        console.log('📋 Links received:', links.length);
         allLinks = links;
         renderLinksTable(links);
       });
       
       socket.on('notification', (notification) => {
+        console.log('🔔 Notification:', notification);
         showAlert(notification.message, notification.type);
       });
-      
-      // Request initial data
-      socket.emit('command', { action: 'getStats' });
-      socket.emit('command', { action: 'getLinks' });
     }
     
     // ============================================
     // Event Listeners Setup - REPLACES ALL INLINE ONCLICK
     // ============================================
     function setupEventListeners() {
+      console.log('🔧 Setting up event listeners...');
+      
       // Logout button
       document.getElementById('logoutBtn')?.addEventListener('click', logout);
       
@@ -1727,6 +1744,13 @@
       // Auto-scroll checkbox
       document.getElementById('autoScroll')?.addEventListener('change', function() {
         autoScroll = this.checked;
+        console.log('Auto-scroll:', autoScroll);
+      });
+      
+      // Show timestamps checkbox
+      document.getElementById('showTimestamps')?.addEventListener('change', function() {
+        showTimestamps = this.checked;
+        console.log('Show timestamps:', showTimestamps);
       });
       
       // Search and filter
@@ -1774,6 +1798,9 @@
       // Load data for specific tabs
       if (tabId === 'links') {
         refreshLinks();
+      } else if (tabId === 'logs') {
+        // Log tab specific actions
+        console.log('📋 Logs tab activated');
       }
     }
     
@@ -1990,25 +2017,102 @@
       `).join('');
     }
     
+    // ENHANCED: Add log entry with better formatting
     function addLogEntry(log) {
       const logs = document.getElementById('logs');
+      if (!logs) return;
+      
+      // Remove placeholder if it exists
+      if (logs.children.length === 1 && logs.children[0].textContent.includes('Waiting for logs')) {
+        logs.innerHTML = '';
+      }
+      
       const entry = document.createElement('div');
       entry.className = 'log-entry';
       
       const time = new Date(log.t).toLocaleTimeString();
       const device = log.device || 'unknown';
-      let icon = '🌐';
-      if (device === 'mobile') icon = '📱';
-      else if (device === 'tablet') icon = '📟';
-      else if (device === 'bot') icon = '🤖';
+      const method = log.method || 'GET';
+      const path = log.path || '/';
+      const ip = log.ip || '0.0.0.0';
+      const duration = log.duration || 0;
+      const type = log.type || 'request';
       
-      entry.innerHTML = `[${time}] ${icon} ${log.ip || '0.0.0.0'} ${log.method || 'GET'} ${log.path || '/'} [${device}] ${log.duration || 0}ms`;
+      // Determine log type class
+      let typeClass = '';
+      let typeIcon = '🌐';
       
+      if (type === 'redirect') {
+        typeClass = 'type-redirect';
+        typeIcon = '🔄';
+      } else if (type === 'generate') {
+        typeClass = 'type-generate';
+        typeIcon = '🔗';
+      } else if (type === 'bot-block' || type === 'bot') {
+        typeClass = 'type-bot-block';
+        typeIcon = '🤖';
+      } else if (type === 'rate-limit') {
+        typeClass = 'type-rate-limit';
+        typeIcon = '⏱️';
+      } else if (type === 'error') {
+        typeClass = 'type-error';
+        typeIcon = '❌';
+      } else if (type === '404') {
+        typeClass = 'type-404';
+        typeIcon = '404';
+      }
+      
+      // Device icon
+      let deviceIcon = '💻';
+      if (device === 'mobile') deviceIcon = '📱';
+      else if (device === 'tablet') deviceIcon = '📟';
+      else if (device === 'bot') deviceIcon = '🤖';
+      
+      // Build log entry HTML
+      let logHtml = '';
+      
+      if (showTimestamps) {
+        logHtml += `<span class="timestamp">[${time}]</span> `;
+      }
+      
+      logHtml += `<span class="type-badge ${typeClass}">${typeIcon} ${type}</span> `;
+      logHtml += `<span class="ip">${ip}</span> `;
+      logHtml += `<span class="method">${method}</span> `;
+      logHtml += `<span class="path">${path}</span> `;
+      logHtml += `<span class="device">${deviceIcon} ${device}</span> `;
+      
+      if (duration > 0) {
+        logHtml += `<span class="duration">${duration}ms</span>`;
+      }
+      
+      if (log.target) {
+        logHtml += ` <span style="color: #9ece6a;">→ ${log.target}</span>`;
+      }
+      
+      if (log.reason) {
+        logHtml += ` <span style="color: #f7768e;">[${log.reason}]</span>`;
+      }
+      
+      entry.innerHTML = logHtml;
+      
+      // Add to logs
       logs.insertBefore(entry, logs.firstChild);
-      if (logs.children.length > 200) logs.removeChild(logs.lastChild);
       
-      if (document.getElementById('autoScroll').checked) {
+      // Limit number of log entries
+      if (logs.children.length > 200) {
+        logs.removeChild(logs.lastChild);
+      }
+      
+      // Auto-scroll if enabled
+      if (autoScroll) {
         logs.scrollTop = 0;
+      }
+      
+      // Update log count
+      logCount++;
+      const logCountElement = document.getElementById('logCount');
+      if (logCountElement) {
+        logCountElement.textContent = logCount;
       }
     }
     
@@ -2372,12 +2476,33 @@
     }
     
     function clearLogs() {
-      document.getElementById('logs').innerHTML = '';
+      const logs = document.getElementById('logs');
+      logs.innerHTML = '<div class="log-entry" style="color: #7aa2f7; text-align: center;"><i class="fas fa-check-circle"></i> Logs cleared</div>';
+      logCount = 0;
+      const logCountElement = document.getElementById('logCount');
+      if (logCountElement) {
+        logCountElement.textContent = '0';
+      }
       showAlert('Logs cleared', 'success');
     }
     
     function exportLogs() {
-      window.location.href = '/admin/export-logs';
+      const logs = document.getElementById('logs');
+      const logEntries = [];
+      
+      for (const entry of logs.children) {
+        logEntries.push(entry.textContent);
+      }
+      
+      const blob = new Blob([logEntries.join('\n')], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `logs-${new Date().toISOString()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      showAlert('Logs exported', 'success');
     }
     
     function exportData(format) {
@@ -2414,10 +2539,12 @@
     
     function clearGeoCache() {
       socket.emit('command', { action: 'clearGeoCache' });
+      showAlert('Geo cache cleared', 'success');
     }
     
     function clearQRCache() {
       socket.emit('command', { action: 'clearQRCache' });
+      showAlert('QR cache cleared', 'success');
     }
     
     function saveSettings() {
@@ -2490,6 +2617,7 @@
     
     // Initialize everything
     function init() {
+      console.log('🚀 Initializing admin dashboard...');
       initSocket();
       setupEventListeners();
       
