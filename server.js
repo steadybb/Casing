@@ -367,7 +367,25 @@ if (validatedConfig.DATABASE_URL && validatedConfig.DATABASE_URL.startsWith('pos
 
         logger.info('✅ Tables created successfully');
 
-        // Step 2: Create indexes separately
+        // Step 2: Check and add any missing columns
+        try {
+          // Check if metadata column exists
+          const metadataCheck = await dbPool.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='links' AND column_name='metadata'
+          `);
+          
+          if (metadataCheck.rows.length === 0) {
+            logger.info('Adding metadata column to links table...');
+            await dbPool.query(`ALTER TABLE links ADD COLUMN metadata JSONB DEFAULT '{}'`);
+            logger.info('✅ Added metadata column');
+          }
+        } catch (err) {
+          logger.warn('Could not verify/add metadata column:', err.message);
+        }
+
+        // Step 3: Create indexes separately with individual error handling
         const indexes = [
           { name: 'idx_links_expires', query: 'CREATE INDEX IF NOT EXISTS idx_links_expires ON links(expires_at);' },
           { name: 'idx_links_status', query: 'CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);' },
@@ -915,64 +933,54 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-
       scriptSrc: [
         "'self'",
         (req, res) => `'nonce-${res.locals.nonce}'`,
         'https://cdn.socket.io',
         'https://cdn.jsdelivr.net',
-        'https://cdnjs.cloudflare.com'
-        // Note: fonts.googleapis.com & fonts.gstatic.com do NOT belong in script-src
+        'https://cdnjs.cloudflare.com',
+        'https://fonts.googleapis.com',
+        'https://fonts.gstatic.com'
       ],
-
       styleSrc: [
         "'self'",
-        "'unsafe-inline'",                // needed for your large inline <style>
+        "'unsafe-inline'",
         'https://cdn.jsdelivr.net',
         'https://cdnjs.cloudflare.com',
-        'https://fonts.googleapis.com'    // Google Fonts CSS loader
+        'https://fonts.googleapis.com',
+        'https://fonts.gstatic.com'
       ],
-
       fontSrc: [
         "'self'",
-        'https://cdnjs.cloudflare.com',   // Font Awesome fonts
-        'https://fonts.gstatic.com',      // Google Fonts actual font files
-        'data:'                           // base64/small inline fonts
+        'https://cdnjs.cloudflare.com',
+        'https://fonts.gstatic.com',
+        'data:'
       ],
-
       imgSrc: [
         "'self'",
         'data:',
-        'https:'                          // safe & common allowance for external images
+        'https:'
       ],
-
       connectSrc: [
         "'self'",
         'ws:',
         'wss:',
-        'https://cdn.socket.io',          // fixes Socket.IO .map + polling
-        'https://cdn.jsdelivr.net'        // fixes Chart.js .map files
-        // Add more only if you do client-side fetch() to other domains
+        'https://cdn.socket.io',
+        'https://cdn.jsdelivr.net'
       ],
-
       frameSrc: ["'none'"],
       objectSrc: ["'none'"],
-
       upgradeInsecureRequests: NODE_ENV === 'production' ? [] : null
     }
   },
-
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
     preload: true
   },
-
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   noSniff: true,
   xssFilter: true,
-
-  // Good to have (hides Express fingerprint)
   hidePoweredBy: true
 }));
 
@@ -1358,7 +1366,7 @@ async function getAllLinks() {
   try {
     const result = await dbPool.query(
       `SELECT id, target_url, created_at, expires_at, current_clicks, max_clicks, 
-              (password_hash IS NOT NULL) as password_protected, metadata->>'notes' as notes,
+              (password_hash IS NOT NULL) as password_protected, COALESCE(metadata->>'notes', '') as notes,
               CASE 
                 WHEN expires_at < NOW() THEN 'expired'
                 WHEN current_clicks >= max_clicks AND max_clicks IS NOT NULL THEN 'completed'
@@ -2029,7 +2037,7 @@ app.get('/admin/login', (req, res) => {
       // Set CSP with nonce for this response
       res.setHeader(
         'Content-Security-Policy',
-        `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.socket.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss:;`
+        `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.socket.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss: https://cdn.socket.io https://cdn.jsdelivr.net;`
       );
       
       res.send(html);
@@ -2173,10 +2181,10 @@ app.get('/admin', async (req, res, next) => {
     const nonce = crypto.randomBytes(16).toString('hex');
     res.locals.nonce = nonce;
     
-    // Set CSP header
+    // Set CSP header with proper connect-src for source maps
     res.setHeader(
       'Content-Security-Policy',
-      `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.socket.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss:;`
+      `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.socket.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self' ws: wss: https://cdn.socket.io https://cdn.jsdelivr.net;`
     );
     
     // Inject nonce into script tag
