@@ -41,28 +41,34 @@
       --success-500: #22c55e;
       --error-500: #ef4444;
       --error-600: #dc2626;
+      --error-700: #b91c1c;
       
       --spacing-xs: 0.25rem;
       --spacing-sm: 0.5rem;
       --spacing-md: 1rem;
       --spacing-lg: 1.5rem;
       --spacing-xl: 2rem;
+      --spacing-2xl: 3rem;
       
       --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-size-xs: 0.75rem;
       --font-size-sm: 0.875rem;
       --font-size-md: 1rem;
       --font-size-lg: 1.125rem;
       --font-size-xl: 1.25rem;
       --font-size-2xl: 1.5rem;
+      --font-size-3xl: 2rem;
       
       --radius-md: 0.5rem;
       --radius-lg: 0.75rem;
       --radius-xl: 1rem;
+      --radius-2xl: 1.5rem;
       
       --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
       --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
       --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
       --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+      --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
       
       --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     }
@@ -144,7 +150,7 @@
       position: relative;
       z-index: 10;
       width: 100%;
-      max-width: 440px;
+      max-width: 460px;
       padding: var(--spacing-md);
       animation: slideUp 0.6s ease-out;
     }
@@ -162,19 +168,19 @@
     
     /* Login Card */
     .login-card {
-      background: rgba(255, 255, 255, 0.95);
+      background: rgba(255, 255, 255, 0.98);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      border-radius: var(--radius-xl);
-      padding: var(--spacing-xl);
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      border-radius: var(--radius-2xl);
+      padding: var(--spacing-2xl);
+      box-shadow: var(--shadow-2xl);
       border: 1px solid rgba(255, 255, 255, 0.5);
       transition: transform var(--transition-base), box-shadow var(--transition-base);
     }
     
     .login-card:hover {
       transform: translateY(-4px);
-      box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.3);
     }
     
     /* Logo Section */
@@ -192,7 +198,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 2.5rem;
+      font-size: var(--font-size-3xl);
       color: white;
       box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.5);
       animation: pulse 2s infinite;
@@ -223,25 +229,19 @@
     /* Alert Messages */
     .alert {
       display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
+      align-items: flex-start;
+      gap: var(--spacing-md);
       padding: var(--spacing-md);
       border-radius: var(--radius-lg);
       margin-bottom: var(--spacing-lg);
       font-size: var(--font-size-sm);
-      animation: shake 0.5s ease;
-    }
-    
-    @keyframes shake {
-      0%, 100% { transform: translateX(0); }
-      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-      20%, 40%, 60%, 80% { transform: translateX(5px); }
     }
     
     .alert-error {
       background: #fef2f2;
       border-left: 4px solid var(--error-500);
       color: var(--error-700);
+      animation: shake 0.5s ease;
     }
     
     .alert-info {
@@ -250,8 +250,15 @@
       color: var(--primary-700);
     }
     
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+      20%, 40%, 60%, 80% { transform: translateX(5px); }
+    }
+    
     .alert-icon {
       font-size: var(--font-size-lg);
+      line-height: 1.4;
     }
     
     .alert-content {
@@ -261,6 +268,10 @@
     .alert-title {
       font-weight: 600;
       margin-bottom: 2px;
+    }
+    
+    .alert-message {
+      opacity: 0.9;
     }
     
     /* Form */
@@ -290,6 +301,7 @@
       font-size: var(--font-size-lg);
       transition: color var(--transition-base);
       z-index: 1;
+      pointer-events: none;
     }
     
     .form-input {
@@ -323,6 +335,12 @@
       font-size: var(--font-size-sm);
     }
     
+    .form-input:disabled {
+      background: var(--neutral-100);
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    
     /* Password Visibility Toggle */
     .password-toggle {
       position: absolute;
@@ -336,6 +354,9 @@
       border-radius: var(--radius-md);
       transition: all var(--transition-base);
       z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     
     .password-toggle:hover {
@@ -343,12 +364,17 @@
       background: var(--neutral-200);
     }
     
+    .password-toggle:focus {
+      outline: 2px solid var(--primary-500);
+      outline-offset: 2px;
+    }
+    
     /* Form Options */
     .form-options {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: var(--spacing-lg);
+      margin-bottom: var(--spacing-xl);
     }
     
     .remember-me {
@@ -356,6 +382,7 @@
       align-items: center;
       gap: var(--spacing-xs);
       cursor: pointer;
+      user-select: none;
     }
     
     .remember-me input[type="checkbox"] {
@@ -376,6 +403,7 @@
       text-decoration: none;
       font-weight: 500;
       transition: color var(--transition-base);
+      cursor: pointer;
     }
     
     .forgot-link:hover {
@@ -436,6 +464,10 @@
       transform: none;
     }
     
+    .submit-btn:disabled::before {
+      display: none;
+    }
+    
     /* Loading State */
     .loading-spinner {
       display: inline-block;
@@ -453,7 +485,7 @@
     
     /* Footer */
     .login-footer {
-      margin-top: var(--spacing-xl);
+      margin-top: var(--spacing-2xl);
       text-align: center;
     }
     
@@ -463,6 +495,7 @@
       justify-content: center;
       gap: var(--spacing-md);
       margin-bottom: var(--spacing-md);
+      flex-wrap: wrap;
     }
     
     .badge-item {
@@ -488,7 +521,7 @@
     }
     
     /* Rate Limit Warning */
-    .rate-limit {
+    .rate-limit-warning {
       margin-top: var(--spacing-md);
       padding: var(--spacing-sm);
       background: #fffbeb;
@@ -499,9 +532,18 @@
       display: none;
     }
     
-    .rate-limit i {
+    .rate-limit-warning i {
       margin-right: var(--spacing-xs);
       color: #f59e0b;
+    }
+    
+    /* Attempt Counter */
+    .attempt-counter {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      transition: all var(--transition-base);
     }
     
     /* Responsive */
@@ -511,13 +553,13 @@
       }
       
       .login-card {
-        padding: var(--spacing-lg);
+        padding: var(--spacing-xl);
       }
       
       .logo-icon {
         width: 60px;
         height: 60px;
-        font-size: 2rem;
+        font-size: var(--font-size-2xl);
       }
       
       .logo-title {
@@ -532,6 +574,11 @@
         flex-direction: column;
         gap: var(--spacing-sm);
         align-items: flex-start;
+      }
+      
+      .security-badge {
+        flex-direction: column;
+        gap: var(--spacing-xs);
       }
       
       .circle-1 {
@@ -555,7 +602,8 @@
       .bg-circle,
       .login-card,
       .submit-btn::before,
-      .loading-spinner {
+      .loading-spinner,
+      .logo-icon {
         animation: none;
       }
       
@@ -575,6 +623,17 @@
       .remember-me input[type="checkbox"] {
         width: 20px;
         height: 20px;
+      }
+    }
+    
+    /* High Contrast Mode */
+    @media (prefers-contrast: high) {
+      .form-input {
+        border-width: 3px;
+      }
+      
+      .alert {
+        border-width: 2px;
       }
     }
   </style>
@@ -599,8 +658,8 @@
         <div class="logo-subtitle">Enterprise Command Center</div>
       </div>
       
-      <!-- CSRF Token -->
-      <input type="hidden" id="csrfToken" name="_csrf" value="">
+      <!-- CSRF Token (Hidden) -->
+      <input type="hidden" id="csrfToken" value="">
       
       <!-- Error Alert -->
       <div class="alert alert-error" id="errorAlert" style="display: none;">
@@ -620,7 +679,7 @@
         </div>
         <div class="alert-content">
           <div class="alert-title">Too Many Attempts</div>
-          <div class="alert-message" id="rateLimitMessage">Please wait 5 minutes before trying again</div>
+          <div class="alert-message" id="rateLimitMessage">Please wait before trying again</div>
         </div>
       </div>
       
@@ -636,6 +695,7 @@
               name="username" 
               class="form-input" 
               placeholder="Enter your username" 
+              value="admin"
               required 
               autofocus
               autocomplete="username"
@@ -684,6 +744,12 @@
         </button>
       </form>
       
+      <!-- Rate Limit Warning -->
+      <div class="rate-limit-warning" id="rateLimitWarning">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span id="rateLimitWarningMessage"></span>
+      </div>
+      
       <!-- Footer -->
       <div class="login-footer">
         <div class="security-badge">
@@ -701,7 +767,8 @@
           </div>
         </div>
         <div class="version-info">
-          <span>Redirector Pro v3.0</span> • Enterprise Edition • <span id="attemptCount">3</span> attempts remaining
+          <span>Redirector Pro v3.0</span> • Enterprise Edition • 
+          <span class="attempt-counter" id="attemptCounter">5</span> attempts remaining
         </div>
       </div>
     </div>
@@ -716,6 +783,7 @@
     let loginAttempts = 0;
     let lockoutUntil = null;
     let csrfToken = '';
+    let countdownInterval = null;
     
     // DOM Elements
     const loginForm = document.getElementById('loginForm');
@@ -726,18 +794,27 @@
     const errorMessage = document.getElementById('errorMessage');
     const rateLimitAlert = document.getElementById('rateLimitAlert');
     const rateLimitMessage = document.getElementById('rateLimitMessage');
-    const attemptCountSpan = document.getElementById('attemptCount');
+    const rateLimitWarning = document.getElementById('rateLimitWarning');
+    const rateLimitWarningMessage = document.getElementById('rateLimitWarningMessage');
+    const attemptCounter = document.getElementById('attemptCounter');
     const togglePassword = document.getElementById('togglePassword');
     const rememberMe = document.getElementById('rememberMe');
     
     // Initialize
+    document.addEventListener('DOMContentLoaded', initialize);
+    
     async function initialize() {
       await fetchCsrfToken();
       loadSavedCredentials();
       startAttemptTimer();
+      
+      // Clear any existing session data
+      if (window.performance && window.performance.navigation.type === 1) {
+        console.log('Page was refreshed');
+      }
     }
     
-    // Fetch CSRF Token
+    // Fetch CSRF Token from server
     async function fetchCsrfToken() {
       try {
         const response = await fetch('/admin/login', {
@@ -745,26 +822,44 @@
           credentials: 'include',
           headers: {
             'Accept': 'text/html',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
         });
         
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const html = await response.text();
-        const match = html.match(/name="_csrf" value="([^"]+)"/);
-        csrfToken = match ? match[1] : '';
-        document.getElementById('csrfToken').value = csrfToken;
+        
+        // Extract CSRF token using regex
+        const tokenMatch = html.match(/name=["']_csrf["'] value=["']([^"']+)["']/);
+        if (tokenMatch && tokenMatch[1]) {
+          csrfToken = tokenMatch[1];
+          document.getElementById('csrfToken').value = csrfToken;
+          console.log('CSRF token loaded successfully');
+        } else {
+          console.error('CSRF token not found in response');
+          showError('Security token not found. Please refresh the page.');
+        }
       } catch (err) {
         console.error('Failed to fetch CSRF token:', err);
-        showError('Security token unavailable. Please refresh.');
+        showError('Unable to establish secure connection. Please check your network and refresh.');
       }
     }
     
     // Load saved credentials if "Remember me" was checked
     function loadSavedCredentials() {
-      const savedUsername = localStorage.getItem('redirector_username');
-      if (savedUsername) {
-        usernameInput.value = savedUsername;
-        rememberMe.checked = true;
+      try {
+        const savedUsername = localStorage.getItem('redirector_username');
+        if (savedUsername) {
+          usernameInput.value = savedUsername;
+          rememberMe.checked = true;
+        }
+      } catch (err) {
+        console.error('Failed to load saved credentials:', err);
       }
     }
     
@@ -773,13 +868,25 @@
       updateAttemptDisplay();
       
       // Check lockout status every second
-      setInterval(() => {
-        if (lockoutUntil && Date.now() > lockoutUntil) {
-          lockoutUntil = null;
-          loginAttempts = 0;
-          rateLimitAlert.style.display = 'none';
-          enableForm();
-          updateAttemptDisplay();
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+      
+      countdownInterval = setInterval(() => {
+        if (lockoutUntil) {
+          const now = Date.now();
+          if (now > lockoutUntil) {
+            // Lockout expired
+            lockoutUntil = null;
+            loginAttempts = 0;
+            rateLimitAlert.style.display = 'none';
+            rateLimitWarning.style.display = 'none';
+            enableForm();
+            updateAttemptDisplay();
+          } else {
+            // Update countdown
+            updateAttemptDisplay();
+          }
         }
       }, 1000);
     }
@@ -787,15 +894,25 @@
     // Update attempt display
     function updateAttemptDisplay() {
       if (lockoutUntil) {
-        const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
+        const remaining = Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000));
         const minutes = Math.floor(remaining / 60);
         const seconds = remaining % 60;
-        attemptCountSpan.textContent = `Locked for ${minutes}m ${seconds}s`;
-        attemptCountSpan.style.color = '#ef4444';
+        
+        if (minutes > 0) {
+          attemptCounter.textContent = `${minutes}m ${seconds}s`;
+        } else {
+          attemptCounter.textContent = `${seconds}s`;
+        }
+        
+        attemptCounter.style.color = '#ef4444';
+        attemptCounter.style.background = '#fee2e2';
+        attemptCounter.style.padding = '2px 8px';
       } else {
         const remaining = MAX_ATTEMPTS - loginAttempts;
-        attemptCountSpan.textContent = remaining;
-        attemptCountSpan.style.color = remaining <= 2 ? '#f59e0b' : '#6366f1';
+        attemptCounter.textContent = remaining;
+        attemptCounter.style.color = remaining <= 2 ? '#f59e0b' : '#6366f1';
+        attemptCounter.style.background = 'transparent';
+        attemptCounter.style.padding = '2px 0';
       }
     }
     
@@ -803,10 +920,11 @@
     togglePassword.addEventListener('click', () => {
       const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
       passwordInput.setAttribute('type', type);
-      togglePassword.querySelector('i').className = type === 'password' ? 'far fa-eye' : 'far fa-eye-slash';
+      const icon = togglePassword.querySelector('i');
+      icon.className = type === 'password' ? 'far fa-eye' : 'far fa-eye-slash';
     });
     
-    // Show error
+    // Show error message
     function showError(message) {
       errorMessage.textContent = message;
       errorAlert.style.display = 'flex';
@@ -817,41 +935,67 @@
       }, 5000);
     }
     
-    // Show rate limit
-    function showRateLimit(message) {
-      rateLimitMessage.textContent = message;
-      rateLimitAlert.style.display = 'flex';
+    // Show rate limit message
+    function showRateLimit(message, isLocked = false) {
+      if (isLocked) {
+        rateLimitMessage.textContent = message;
+        rateLimitAlert.style.display = 'flex';
+        rateLimitWarning.style.display = 'none';
+      } else {
+        rateLimitWarningMessage.textContent = message;
+        rateLimitWarning.style.display = 'block';
+        rateLimitAlert.style.display = 'none';
+      }
     }
     
-    // Enable/disable form
-    function disableForm() {
+    // Disable form during submission or lockout
+    function disableForm(isLocked = false) {
       usernameInput.disabled = true;
       passwordInput.disabled = true;
       loginBtn.disabled = true;
-      loginBtn.innerHTML = '<span class="loading-spinner"></span><span>Please wait...</span>';
+      
+      if (isLocked) {
+        loginBtn.innerHTML = '<span class="loading-spinner"></span><span>Locked</span>';
+      } else {
+        loginBtn.innerHTML = '<span class="loading-spinner"></span><span>Verifying...</span>';
+      }
     }
     
+    // Enable form
     function enableForm() {
       usernameInput.disabled = false;
       passwordInput.disabled = false;
       loginBtn.disabled = false;
       loginBtn.innerHTML = '<span>Sign In</span><i class="fas fa-arrow-right"></i>';
+      
+      // Focus password field for retry
+      passwordInput.focus();
     }
     
     // Show help dialog
     function showHelp(event) {
       event.preventDefault();
-      alert('For assistance, please contact your system administrator.\n\nDefault credentials are configured in your .env file.');
+      alert(
+        '🔐 Admin Access Help\n\n' +
+        '• Default username: admin\n' +
+        '• Password was set during installation\n' +
+        '• Check your .env file for ADMIN_PASSWORD_HASH\n' +
+        '• Contact your system administrator for assistance'
+      );
     }
     
     // Handle form submission
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       
-      // Check lockout
+      // Check if locked out
       if (lockoutUntil && Date.now() < lockoutUntil) {
         const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
-        showRateLimit(`Too many attempts. Please wait ${Math.ceil(remaining / 60)} minutes.`);
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        const timeString = minutes > 0 ? `${minutes} minute${minutes > 1 ? 's' : ''}` : `${seconds} second${seconds > 1 ? 's' : ''}`;
+        
+        showRateLimit(`Too many failed attempts. Please wait ${timeString}.`, true);
         return;
       }
       
@@ -859,8 +1003,22 @@
       const username = usernameInput.value.trim();
       const password = passwordInput.value;
       
-      if (!username || !password) {
-        showError('Please enter both username and password');
+      if (!username) {
+        showError('Please enter your username');
+        usernameInput.focus();
+        return;
+      }
+      
+      if (!password) {
+        showError('Please enter your password');
+        passwordInput.focus();
+        return;
+      }
+      
+      // Check CSRF token
+      if (!csrfToken) {
+        showError('Security token missing. Refreshing...');
+        await fetchCsrfToken();
         return;
       }
       
@@ -868,60 +1026,108 @@
       disableForm();
       
       try {
+        console.log('Attempting login for user:', username);
+        
         const response = await fetch('/admin/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': csrfToken,
-            'X-Requested-With': 'XMLHttpRequest'
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({
-            username,
-            password,
+            username: username,
+            password: password,
             _csrf: csrfToken,
             remember: rememberMe.checked
           }),
           credentials: 'include'
         });
         
-        if (response.ok) {
+        // Parse response
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON response:', text.substring(0, 200));
+          throw new Error('Invalid server response format');
+        }
+        
+        if (response.ok && data.success) {
+          // Successful login
+          console.log('Login successful, redirecting...');
+          
           // Save username if "Remember me" is checked
-          if (rememberMe.checked) {
-            localStorage.setItem('redirector_username', username);
-          } else {
-            localStorage.removeItem('redirector_username');
+          try {
+            if (rememberMe.checked) {
+              localStorage.setItem('redirector_username', username);
+            } else {
+              localStorage.removeItem('redirector_username');
+            }
+          } catch (err) {
+            console.error('Failed to save username:', err);
           }
           
-          // Successful login - redirect to dashboard
+          // Redirect to admin dashboard
           window.location.href = '/admin';
         } else {
           // Failed login
           loginAttempts++;
+          console.log(`Login failed. Attempt ${loginAttempts}/${MAX_ATTEMPTS}`);
+          
           updateAttemptDisplay();
           
           if (loginAttempts >= MAX_ATTEMPTS) {
+            // Lock out
             lockoutUntil = Date.now() + LOCKOUT_TIME;
-            showRateLimit(`Too many failed attempts. Locked for 5 minutes.`);
-            disableForm();
+            showRateLimit(`Account locked for 5 minutes due to too many failed attempts.`, true);
+            disableForm(true);
+            
+            // Log the lockout
+            console.warn(`Account locked for IP until ${new Date(lockoutUntil).toISOString()}`);
           } else {
-            const data = await response.json().catch(() => ({}));
+            // Show error
+            const remaining = MAX_ATTEMPTS - loginAttempts;
             showError(data.error || 'Invalid username or password');
+            
+            // Show rate limit warning
+            if (remaining <= 2) {
+              showRateLimit(`${remaining} attempt${remaining > 1 ? 's' : ''} remaining before lockout`, false);
+            }
+            
+            // Re-enable form for retry
             enableForm();
             
             // Shake animation
             loginForm.style.animation = 'none';
-            loginForm.offsetHeight;
+            loginForm.offsetHeight; // Trigger reflow
             loginForm.style.animation = 'shake 0.5s ease';
+            
+            // Clear password field
+            passwordInput.value = '';
           }
         }
       } catch (err) {
         console.error('Login error:', err);
-        showError('Network error. Please check your connection.');
+        showError('Connection error. Please check your network and try again.');
         enableForm();
       }
     });
     
-    // Add input validation feedback
+    // Input validation and error clearing
+    usernameInput.addEventListener('input', () => {
+      errorAlert.style.display = 'none';
+      rateLimitWarning.style.display = 'none';
+    });
+    
+    passwordInput.addEventListener('input', () => {
+      errorAlert.style.display = 'none';
+      rateLimitWarning.style.display = 'none';
+    });
+    
     usernameInput.addEventListener('invalid', (e) => {
       e.preventDefault();
       showError('Please enter your username');
@@ -932,15 +1138,6 @@
       showError('Please enter your password');
     });
     
-    // Clear error on input
-    usernameInput.addEventListener('input', () => {
-      errorAlert.style.display = 'none';
-    });
-    
-    passwordInput.addEventListener('input', () => {
-      errorAlert.style.display = 'none';
-    });
-    
     // Handle Enter key
     loginForm.addEventListener('keypress', (e) => {
       if (e.key === 'Enter' && !loginBtn.disabled) {
@@ -949,12 +1146,10 @@
       }
     });
     
-    // Initialize on load
-    document.addEventListener('DOMContentLoaded', initialize);
-    
-    // Handle back button
+    // Handle back/forward cache
     window.addEventListener('pageshow', (event) => {
       if (event.persisted) {
+        // Page was loaded from bfcache (back/forward cache)
         window.location.reload();
       }
     });
@@ -963,6 +1158,13 @@
     if (window.history.replaceState) {
       window.history.replaceState(null, null, window.location.href);
     }
+    
+    // Clean up on unload
+    window.addEventListener('beforeunload', () => {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+    });
   </script>
 </body>
 </html>
