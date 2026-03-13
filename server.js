@@ -294,73 +294,81 @@ if (validatedConfig.DATABASE_URL && validatedConfig.DATABASE_URL.startsWith('pos
       }
     });
 
-    // Create tables with proper schema
-    dbPool.query(`
-      CREATE TABLE IF NOT EXISTS links (
-        id VARCHAR(32) PRIMARY KEY,
-        target_url TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL,
-        creator_ip INET,
-        password_hash TEXT,
-        max_clicks INTEGER,
-        current_clicks INTEGER DEFAULT 0,
-        last_accessed TIMESTAMP,
-        status VARCHAR(20) DEFAULT 'active',
-        metadata JSONB DEFAULT '{}'
-      );
+    // Create tables with proper schema and error handling
+    const createTables = async () => {
+      try {
+        await dbPool.query(`
+          CREATE TABLE IF NOT EXISTS links (
+            id VARCHAR(32) PRIMARY KEY,
+            target_url TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP NOT NULL,
+            creator_ip INET,
+            password_hash TEXT,
+            max_clicks INTEGER,
+            current_clicks INTEGER DEFAULT 0,
+            last_accessed TIMESTAMP,
+            status VARCHAR(20) DEFAULT 'active',
+            metadata JSONB DEFAULT '{}'
+          );
 
-      CREATE TABLE IF NOT EXISTS clicks (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        link_id VARCHAR(32) REFERENCES links(id) ON DELETE CASCADE,
-        ip INET,
-        user_agent TEXT,
-        device_type VARCHAR(20),
-        country VARCHAR(2),
-        city TEXT,
-        referer TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+          CREATE TABLE IF NOT EXISTS clicks (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            link_id VARCHAR(32) REFERENCES links(id) ON DELETE CASCADE,
+            ip INET,
+            user_agent TEXT,
+            device_type VARCHAR(20),
+            country VARCHAR(2),
+            city TEXT,
+            referer TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
 
-      CREATE TABLE IF NOT EXISTS logs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        data JSONB NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+          CREATE TABLE IF NOT EXISTS logs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            data JSONB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
 
-      CREATE TABLE IF NOT EXISTS analytics (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        type VARCHAR(50) NOT NULL,
-        data JSONB NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+          CREATE TABLE IF NOT EXISTS analytics (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            type VARCHAR(50) NOT NULL,
+            data JSONB NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
 
-      CREATE TABLE IF NOT EXISTS settings (
-        key VARCHAR(100) PRIMARY KEY,
-        value JSONB NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_by VARCHAR(100)
-      );
+          CREATE TABLE IF NOT EXISTS settings (
+            key VARCHAR(100) PRIMARY KEY,
+            value JSONB NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_by VARCHAR(100)
+          );
 
-      CREATE TABLE IF NOT EXISTS blocked_ips (
-        ip INET PRIMARY KEY,
-        reason TEXT,
-        expires_at TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+          CREATE TABLE IF NOT EXISTS blocked_ips (
+            ip INET PRIMARY KEY,
+            reason TEXT,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
 
-      CREATE INDEX IF NOT EXISTS idx_links_expires ON links(expires_at);
-      CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
-      CREATE INDEX IF NOT EXISTS idx_clicks_link_id ON clicks(link_id);
-      CREATE INDEX IF NOT EXISTS idx_clicks_created ON clicks(created_at);
-      CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics(type);
-      CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics(created_at);
-      CREATE INDEX IF NOT EXISTS idx_blocked_ips_expires ON blocked_ips(expires_at);
-    `).catch(err => {
-      if (validatedConfig.DEBUG) {
-        logger.error('Database initialization error:', err);
+          CREATE INDEX IF NOT EXISTS idx_links_expires ON links(expires_at);
+          CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
+          CREATE INDEX IF NOT EXISTS idx_clicks_link_id ON clicks(link_id);
+          CREATE INDEX IF NOT EXISTS idx_clicks_created ON clicks(created_at);
+          CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics(type);
+          CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics(created_at);
+          CREATE INDEX IF NOT EXISTS idx_blocked_ips_expires ON blocked_ips(expires_at);
+        `);
+        
+        logger.info('✅ Database tables verified/created successfully');
+      } catch (err) {
+        logger.error('Database table creation error:', err);
+        // Don't exit, continue with limited functionality
       }
-    });
+    };
+
+    // Run table creation without awaiting to not block startup
+    createTables();
     
     logger.info('✅ Database connected');
   } catch (err) {
@@ -1992,15 +2000,24 @@ app.post('/admin/login', csrfProtection, express.json(), async (req, res, next) 
     
     const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
     
-    // Check if IP is blocked
+    // Check if IP is blocked (with error handling)
     if (dbPool) {
-      const blocked = await dbPool.query(
-        'SELECT * FROM blocked_ips WHERE ip = $1 AND expires_at > NOW()',
-        [ip]
-      );
-      if (blocked.rows.length > 0) {
-        logger.error(`Blocked IP attempted login: ${ip}`);
-        throw new AppError('Access denied', 403);
+      try {
+        const blocked = await dbPool.query(
+          'SELECT * FROM blocked_ips WHERE ip = $1 AND expires_at > NOW()',
+          [ip]
+        );
+        if (blocked.rows.length > 0) {
+          logger.error(`Blocked IP attempted login: ${ip}`);
+          throw new AppError('Access denied', 403);
+        }
+      } catch (dbErr) {
+        // If table doesn't exist, log but continue
+        if (dbErr.code === '42P01') { // PostgreSQL error code for undefined table
+          logger.warn('blocked_ips table not found, skipping IP block check');
+        } else {
+          logger.error('Database error checking blocked IP:', dbErr);
+        }
       }
     }
     
@@ -2020,12 +2037,16 @@ app.post('/admin/login', csrfProtection, express.json(), async (req, res, next) 
     if (attemptData.count > 10) {
       logger.error(`Excessive login attempts from ${ip}: ${attemptData.count}`);
       
-      // Block IP in database
+      // Block IP in database (with error handling)
       if (dbPool) {
-        await dbPool.query(
-          'INSERT INTO blocked_ips (ip, reason, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'1 hour\') ON CONFLICT (ip) DO UPDATE SET expires_at = NOW() + INTERVAL \'1 hour\'',
-          [ip, 'Excessive login attempts']
-        );
+        try {
+          await dbPool.query(
+            'INSERT INTO blocked_ips (ip, reason, expires_at) VALUES ($1, $2, NOW() + INTERVAL \'1 hour\') ON CONFLICT (ip) DO UPDATE SET expires_at = NOW() + INTERVAL \'1 hour\'',
+            [ip, 'Excessive login attempts']
+          );
+        } catch (dbErr) {
+          logger.error('Failed to block IP in database:', dbErr);
+        }
       }
       
       throw new AppError('Too many login attempts. IP blocked for 1 hour.', 429);
