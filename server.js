@@ -18,7 +18,6 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const dotenv = require('dotenv');
-const csrf = require('csurf');
 const { Pool } = require('pg');
 const Queue = require('bull');
 const Joi = require('joi');
@@ -37,7 +36,7 @@ const Redis = require('ioredis');
 const createRedisStore = require('connect-redis').default;
 const cookieParser = require('cookie-parser');
 
-// Bull Board imports - FIXED
+// Bull Board imports
 const { createBullBoard } = require('@bull-board/api');
 const { BullAdapter } = require('@bull-board/api/bullAdapter');
 const { ExpressAdapter } = require('@bull-board/express');
@@ -73,8 +72,7 @@ const configSchema = Joi.object({
   HTTPS_ENABLED: Joi.boolean().default(false),
   DEBUG: Joi.boolean().default(false),
   BULL_BOARD_ENABLED: Joi.boolean().default(true),
-  BULL_BOARD_PATH: Joi.string().default('/admin/queues'),
-  CSRF_SECRET: Joi.string().min(32).optional()
+  BULL_BOARD_PATH: Joi.string().default('/admin/queues')
 });
 
 const { error: configError, value: validatedConfig } = configSchema.validate(process.env, {
@@ -430,55 +428,60 @@ app.use(session({
   rolling: true
 }));
 
-// ─── CSRF Protection (FIXED) ─────────────────────────────────────────────
-// Generate a CSRF secret if not provided
-const csrfSecret = validatedConfig.CSRF_SECRET || crypto.randomBytes(32).toString('hex');
-
-// Custom CSRF error handler
-const csrfProtection = csrf({ 
-  cookie: {
-    key: '_csrf',
-    httpOnly: true,
-    secure: validatedConfig.NODE_ENV === 'production',
-    sameSite: 'lax'
-  },
-  value: (req) => {
-    // Check for token in multiple locations
-    return (req.body && req.body._csrf) || 
-           (req.query && req.query._csrf) || 
-           (req.headers['csrf-token']) || 
-           (req.headers['xsrf-token']) ||
-           (req.headers['x-csrf-token']) ||
-           (req.headers['x-xsrf-token']) ||
-           (req.cookies && req.cookies['_csrf']);
-  }
-});
-
-// Add CSRF token to all responses for forms
+// ─── CSRF Protection (OPTION 3: Session-based) ─────────────────────────────
+// Middleware to generate and validate CSRF token using session
 app.use((req, res, next) => {
-  try {
-    if (req.csrfToken) {
-      res.locals.csrfToken = req.csrfToken();
-    } else {
-      res.locals.csrfToken = '';
-    }
-  } catch (err) {
-    res.locals.csrfToken = '';
+  // Generate token if not exists
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomBytes(32).toString('hex');
   }
+  
+  // Make token available to views
+  res.locals.csrfToken = req.session.csrfToken;
+  
+  // Add to response headers for AJAX requests
+  res.setHeader('X-CSRF-Token', req.session.csrfToken);
   next();
 });
 
-// CSRF error handler middleware
-app.use((err, req, res, next) => {
-  if (err.code === 'EBADCSRFTOKEN') {
-    logger.warn('CSRF attack detected:', { id: req.id, ip: req.ip });
-    return res.status(403).json({ 
-      error: 'Invalid CSRF token',
-      id: req.id 
-    });
+// CSRF validation middleware for non-GET requests
+const csrfProtection = (req, res, next) => {
+  // Skip CSRF for GET, HEAD, OPTIONS
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
   }
-  next(err);
-});
+  
+  // Get token from various sources
+  const token = req.body._csrf || 
+                req.query._csrf || 
+                req.headers['csrf-token'] || 
+                req.headers['xsrf-token'] ||
+                req.headers['x-csrf-token'] ||
+                req.headers['x-xsrf-token'];
+  
+  // Validate token
+  if (!token || token !== req.session.csrfToken) {
+    logger.warn('CSRF validation failed:', { 
+      id: req.id, 
+      ip: req.ip, 
+      path: req.path,
+      method: req.method
+    });
+    
+    // For API requests, return JSON error
+    if (req.path.startsWith('/api/') || req.xhr) {
+      return res.status(403).json({ 
+        error: 'Invalid CSRF token',
+        id: req.id 
+      });
+    }
+    
+    // For form submissions, redirect back with error
+    return res.redirect(req.get('referer') || '/admin/login?error=invalid_csrf');
+  }
+  
+  next();
+};
 
 // ─── Bull Board Middleware ──────────────────────────────────────────
 if (serverAdapter && validatedConfig.BULL_BOARD_ENABLED) {
@@ -1139,7 +1142,7 @@ app.get('/metrics', async (req, res) => {
 });
 
 // ─── Generate Link ───────────────────────────────────────────────────────────
-app.post('/api/generate', [
+app.post('/api/generate', csrfProtection, [
   body('url').isURL().withMessage('Valid URL required'),
   body('password').optional().isString().isLength({ min: 6 }),
   body('maxClicks').optional().isInt({ min: 1, max: 10000 }),
@@ -1619,12 +1622,7 @@ app.get('/admin/login', (req, res) => {
   }
   
   const nonce = res.locals.nonce;
-  let csrfToken = '';
-  try {
-    csrfToken = req.csrfToken ? req.csrfToken() : '';
-  } catch (err) {
-    // CSRF token not available yet
-  }
+  const csrfToken = res.locals.csrfToken || '';
   
   res.send(`
     <!DOCTYPE html>
@@ -1673,14 +1671,14 @@ app.get('/admin/login', (req, res) => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'CSRF-Token': csrfToken,
               'X-CSRF-Token': csrfToken
             },
             body: JSON.stringify({
               username: document.getElementById('username').value,
               password: document.getElementById('password').value,
               _csrf: csrfToken
-            })
+            }),
+            credentials: 'include'
           });
           if (res.ok) {
             window.location.href = '/admin';
@@ -1712,6 +1710,10 @@ app.post('/admin/login', csrfProtection, express.json(), async (req, res, next) 
       req.session.authenticated = true;
       req.session.user = username;
       req.session.loginTime = Date.now();
+      
+      // Regenerate CSRF token after successful login
+      req.session.csrfToken = crypto.randomBytes(32).toString('hex');
+      
       linkRequestCache.del(`login:${ip}`);
       res.json({ success: true });
     } else {
@@ -1722,19 +1724,14 @@ app.post('/admin/login', csrfProtection, express.json(), async (req, res, next) 
   }
 });
 
-// FIXED: Admin route with proper template literal escaping
+// Admin dashboard route
 app.get('/admin', (req, res, next) => {
   if (!req.session.authenticated) {
     return res.redirect('/admin/login');
   }
   
   const nonce = res.locals.nonce;
-  let csrfToken = '';
-  try {
-    csrfToken = req.csrfToken ? req.csrfToken() : '';
-  } catch (err) {
-    // CSRF token not available yet
-  }
+  const csrfToken = res.locals.csrfToken || '';
   
   res.send(`<!DOCTYPE html>
 <html>
@@ -1999,15 +1996,16 @@ app.get('/admin', (req, res, next) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'CSRF-Token': csrf,
           'X-CSRF-Token': csrf
         },
         body: JSON.stringify({ 
           url, 
           password: password || undefined,
           maxClicks: maxClicks ? parseInt(maxClicks) : undefined,
-          expiresIn
-        })
+          expiresIn,
+          _csrf: csrf
+        }),
+        credentials: 'include'
       });
       
       if (res.ok) {
@@ -2051,9 +2049,10 @@ app.get('/admin', (req, res, next) => {
       const res = await fetch('/admin/clear-cache', {
         method: 'POST',
         headers: { 
-          'CSRF-Token': csrf,
           'X-CSRF-Token': csrf
-        }
+        },
+        body: JSON.stringify({ _csrf: csrf }),
+        credentials: 'include'
       });
       if (res.ok) {
         showAlert('Cache cleared successfully', 'success');
