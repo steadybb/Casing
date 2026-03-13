@@ -294,9 +294,10 @@ if (validatedConfig.DATABASE_URL && validatedConfig.DATABASE_URL.startsWith('pos
       }
     });
 
-    // Create tables with proper schema and error handling
+    // Create tables with proper schema and error handling - FIXED ORDER
     const createTables = async () => {
       try {
+        // First create all tables without indexes that depend on columns
         await dbPool.query(`
           CREATE TABLE IF NOT EXISTS links (
             id VARCHAR(32) PRIMARY KEY,
@@ -350,7 +351,10 @@ if (validatedConfig.DATABASE_URL && validatedConfig.DATABASE_URL.startsWith('pos
             expires_at TIMESTAMP NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
+        `);
 
+        // Then create indexes separately to avoid column dependency issues
+        await dbPool.query(`
           CREATE INDEX IF NOT EXISTS idx_links_expires ON links(expires_at);
           CREATE INDEX IF NOT EXISTS idx_links_status ON links(status);
           CREATE INDEX IF NOT EXISTS idx_clicks_link_id ON clicks(link_id);
