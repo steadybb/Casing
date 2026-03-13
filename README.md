@@ -1,4 +1,4 @@
-# 🔗 Redirector Pro
+# BluuWeb Redirector
 
 <div align="center">
 
