@@ -40,7 +40,6 @@ const swaggerUi = require('swagger-ui-express');
 const promBundle = require('express-prom-bundle');
 const { RateLimiterRedis, RateLimiterMemory } = require('rate-limiter-flexible');
 const circuitBreaker = require('opossum');
-const { v4: uuidv4 } = require('uuid');
 const { createHash } = require('crypto');
 const { performance } = require('perf_hooks');
 const { createNamespace } = require('cls-hooked');
