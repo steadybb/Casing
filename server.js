@@ -23,7 +23,7 @@ const Queue = require('bull');
 const Joi = require('joi');
 const promClient = require('prom-client');
 const { createLogger, format, transports } = require('winston');
-const { v4: uuidv4 } = require('uuid'); // Single import
+const { v4: uuidv4 } = require('uuid');
 const sanitizeHtml = require('sanitize-html');
 const xss = require('xss-clean');
 const hpp = require('hpp');
@@ -40,7 +40,6 @@ const swaggerUi = require('swagger-ui-express');
 const promBundle = require('express-prom-bundle');
 const { RateLimiterRedis, RateLimiterMemory } = require('rate-limiter-flexible');
 const circuitBreaker = require('opossum');
-const { createHash } = require('crypto'); // Already imported crypto, but specific import is fine
 const { performance } = require('perf_hooks');
 const { createNamespace } = require('cls-hooked');
 const async_hooks = require('async_hooks');
@@ -48,9 +47,6 @@ const heapdump = require('heapdump');
 const { createBullBoard } = require('@bull-board/api');
 const { BullAdapter } = require('@bull-board/api/bullAdapter');
 const { ExpressAdapter } = require('@bull-board/express');
-
-// Note: '@datadog/pprof' is commented out as it might not be installed
-// const createGraph = require('@datadog/pprof');
 
 // Load environment variables with validation
 dotenv.config();
@@ -1307,13 +1303,11 @@ app.use(compression({
   }
 }));
 
-// Request logging with Morgan
+// Request logging with Morgan - FIXED: Removed audit log level
 app.use(morgan(CONFIG.LOG_FORMAT === 'json' ? 'combined' : 'dev', { 
   stream: { 
     write: message => {
       logger.info(message.trim());
-      // Also log to audit file
-      logger.log('audit', message.trim());
     }
   } 
 }));
@@ -1998,7 +1992,7 @@ setInterval(() => {
     stats.realtime.peakRPS = stats.realtime.requestsPerSecond;
   }
   
-  // Calculate business metrics rates
+  // Calculate business metrics rates - FIXED: Added null checks
   if (dbPool) {
     queryWithTimeout(
       `SELECT 
@@ -2008,9 +2002,13 @@ setInterval(() => {
        FROM analytics`
     ).then(result => {
       if (result.rows[0]) {
-        businessMetrics.linkCreationRate.labels('all').set(result.rows[0].generate_count);
-        businessMetrics.botDetectionRate.labels('all').set(result.rows[0].bot_count);
-        businessMetrics.redirectRate.labels('all', 'success').set(result.rows[0].redirect_count);
+        const generateCount = result.rows[0].generate_count || 0;
+        const botCount = result.rows[0].bot_count || 0;
+        const redirectCount = result.rows[0].redirect_count || 0;
+        
+        businessMetrics.linkCreationRate.labels('all').set(Number(generateCount));
+        businessMetrics.botDetectionRate.labels('all').set(Number(botCount));
+        businessMetrics.redirectRate.labels('all', 'success').set(Number(redirectCount));
       }
     }).catch(err => {
       logger.error('Failed to fetch business metrics:', err);
@@ -2040,7 +2038,7 @@ setInterval(() => {
 function getDeviceInfo(req) {
   const ua = req.headers['user-agent'] || '';
   
-  const cacheKey = createHash('md5').update(ua.substring(0, 200)).digest('hex');
+  const cacheKey = crypto.createHash('md5').update(ua.substring(0, 200)).digest('hex');
   const cached = cacheGet(deviceCache, 'device', cacheKey);
   if (cached) return cached;
 
@@ -5044,6 +5042,7 @@ app.get('/admin', async (req, res, next) => {
     const dashboardPath = path.join(__dirname, 'public', 'index.html');
     let html = await fs.readFile(dashboardPath, 'utf8');
     
+    // FIXED: Complete replacements object with all needed variables
     const replacements = {
       '{{METRICS_API_KEY}}': METRICS_API_KEY,
       '{{TARGET_URL}}': TARGET_URL,
@@ -5052,21 +5051,24 @@ app.get('/admin', async (req, res, next) => {
       '{{redisStatus}}': redisClient?.status === 'ready' ? 'connected' : 'disconnected',
       '{{redirectQueueStatus}}': redirectQueue ? 'connected' : 'disconnected',
       '{{encodingQueueStatus}}': encodingQueue ? 'connected' : 'disconnected',
-      '{{bullBoardPath}}': CONFIG.BULL_BOARD_PATH,
-      '{{linkLengthMode}}': LINK_LENGTH_MODE,
-      '{{allowLinkModeSwitch}}': ALLOW_LINK_MODE_SWITCH,
-      '{{longLinkSegments}}': LONG_LINK_SEGMENTS,
-      '{{longLinkParams}}': LONG_LINK_PARAMS,
-      '{{linkEncodingLayers}}': LINK_ENCODING_LAYERS,
-      '{{enableCompression}}': ENABLE_COMPRESSION,
-      '{{enableEncryption}}': ENABLE_ENCRYPTION,
-      '{{maxEncodingIterations}}': MAX_ENCODING_ITERATIONS,
-      '{{encodingComplexityThreshold}}': ENCODING_COMPLEXITY_THRESHOLD,
-      '{{version}}': '4.0.0'
+      '{{bullBoardPath}}': CONFIG.BULL_BOARD_PATH || '/admin/queues',
+      '{{linkLengthMode}}': LINK_LENGTH_MODE || 'short',
+      '{{allowLinkModeSwitch}}': ALLOW_LINK_MODE_SWITCH ? 'true' : 'false',
+      '{{longLinkSegments}}': LONG_LINK_SEGMENTS || 6,
+      '{{longLinkParams}}': LONG_LINK_PARAMS || 13,
+      '{{linkEncodingLayers}}': LINK_ENCODING_LAYERS || 4,
+      '{{enableCompression}}': ENABLE_COMPRESSION ? 'true' : 'false',
+      '{{enableEncryption}}': ENABLE_ENCRYPTION ? 'true' : 'false',
+      '{{maxEncodingIterations}}': MAX_ENCODING_ITERATIONS || 3,
+      '{{encodingComplexityThreshold}}': ENCODING_COMPLEXITY_THRESHOLD || 50,
+      '{{version}}': '4.0.0',
+      '{{nodeEnv}}': NODE_ENV || 'production',
+      '{{RATE_LIMIT_MAX}}': CONFIG.RATE_LIMIT_MAX_REQUESTS || 100,
+      '{{ENCODING_RATE_LIMIT}}': CONFIG.ENCODING_RATE_LIMIT || 10
     };
     
     for (const [key, value] of Object.entries(replacements)) {
-      html = html.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+      html = html.replace(new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
     }
     
     const nonce = crypto.randomBytes(16).toString('hex');
