@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Secure Access | Redirector Pro Enterprise</title>
+  <title>Secure Access | Redirector Pro Enterprise v4.0</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <meta name="theme-color" content="#000000">
@@ -816,8 +816,8 @@
         <span id="infoMessage"></span>
       </div>
 
-      <!-- CSRF Token (Will be injected by server) -->
-      <input type="hidden" id="csrfToken" value="">
+      <!-- CSRF Token - Will be injected by server -->
+      <input type="hidden" id="csrfToken" value="{{csrfToken}}">
 
       <!-- Error Alert -->
       <div class="alert alert-error" id="errorAlert" style="display: none;">
@@ -921,7 +921,7 @@
           </div>
         </div>
         <div class="version-info">
-          <span>Redirector Pro v3.0</span> • Enterprise Edition • 
+          <span>Redirector Pro v4.0</span> • Enterprise Edition • 
           <span class="attempt-counter" id="attemptCounter">5</span> attempts remaining
         </div>
       </div>
@@ -929,15 +929,22 @@
   </div>
 
   <script nonce="{{NONCE}}">
+    // Server-side injected variables
+    const CSRF_TOKEN = '{{csrfToken}}';
+    const ADMIN_USERNAME = '{{ADMIN_USERNAME}}';
+    const MAX_LOGIN_ATTEMPTS = {{LOGIN_ATTEMPTS_MAX}} || 5;
+    const LOGIN_BLOCK_DURATION = {{LOGIN_BLOCK_DURATION}} || 300000; // 5 minutes in ms
+    const VERSION = '{{version}}';
+
     // Configuration
-    const MAX_ATTEMPTS = 5;
-    const LOCKOUT_TIME = 5 * 60 * 1000; // 5 minutes
-    const DEBUG_MODE = true;
+    const MAX_ATTEMPTS = parseInt(MAX_LOGIN_ATTEMPTS) || 5;
+    const LOCKOUT_TIME = parseInt(LOGIN_BLOCK_DURATION) || 5 * 60 * 1000; // 5 minutes
+    const DEBUG_MODE = {{DEBUG}} === 'true' || false;
 
     // State
     let loginAttempts = 0;
     let lockoutUntil = null;
-    let csrfToken = '';
+    let csrfToken = CSRF_TOKEN || '';
     let countdownInterval = null;
 
     // DOM Elements
@@ -961,10 +968,10 @@
     // IMMEDIATE URL CLEANUP
     // ============================================
     (function() {
-      console.log('📍 Current URL:', window.location.href);
+      if (DEBUG_MODE) console.log('📍 Current URL:', window.location.href);
       
       if (window.location.search) {
-        console.log('🧹 Found query parameters, cleaning URL...');
+        if (DEBUG_MODE) console.log('🧹 Found query parameters, cleaning URL...');
         
         if (infoBanner) {
           infoMessage.textContent = 'Removed login parameters from URL for security';
@@ -980,12 +987,12 @@
                         window.location.pathname;
         
         window.history.replaceState(null, null, cleanUrl);
-        console.log('✅ URL cleaned:', cleanUrl);
+        if (DEBUG_MODE) console.log('✅ URL cleaned:', cleanUrl);
       }
       
       if (window.location.hash && window.location.hash.includes('=')) {
         window.history.replaceState(null, null, window.location.pathname);
-        console.log('🧹 Cleaned hash from URL');
+        if (DEBUG_MODE) console.log('🧹 Cleaned hash from URL');
       }
     })();
 
@@ -996,7 +1003,9 @@
 
     function initialize() {
       const tokenElement = document.getElementById('csrfToken');
-      csrfToken = tokenElement ? tokenElement.value : '';
+      if (tokenElement && tokenElement.value) {
+        csrfToken = tokenElement.value;
+      }
       
       if (!csrfToken) {
         console.error('❌ CSRF token not found in page');
@@ -1005,7 +1014,12 @@
         return;
       }
       
-      console.log('✅ CSRF token loaded from page');
+      if (DEBUG_MODE) console.log('✅ CSRF token loaded from page');
+      
+      // Set default username if provided by server
+      if (ADMIN_USERNAME && ADMIN_USERNAME !== '{{ADMIN_USERNAME}}') {
+        usernameInput.value = ADMIN_USERNAME;
+      }
       
       loadSavedCredentials();
       startAttemptTimer();
@@ -1024,7 +1038,7 @@
           rememberMe.checked = true;
         }
       } catch (err) {
-        console.error('Failed to load saved credentials:', err);
+        if (DEBUG_MODE) console.error('Failed to load saved credentials:', err);
       }
     }
 
@@ -1134,7 +1148,8 @@
         '• Default username: admin\n' +
         '• Password was set during installation\n' +
         '• Check your .env file for ADMIN_PASSWORD_HASH\n' +
-        '• Contact your system administrator for assistance'
+        '• Contact your system administrator for assistance\n\n' +
+        `Version: ${VERSION || '4.0.0'}`
       );
     }
 
@@ -1181,7 +1196,7 @@
       disableForm();
       
       try {
-        console.log('📤 Sending login request for user:', username);
+        if (DEBUG_MODE) console.log('📤 Sending login request for user:', username);
         
         const response = await fetch('/admin/login', {
           method: 'POST',
@@ -1206,12 +1221,12 @@
           data = await response.json();
         } else {
           const text = await response.text();
-          console.error('❌ Non-JSON response:', text.substring(0, 200));
+          if (DEBUG_MODE) console.error('❌ Non-JSON response:', text.substring(0, 200));
           throw new Error('Invalid server response format');
         }
         
         if (response.ok && data.success) {
-          console.log('✅ Login successful, redirecting...');
+          if (DEBUG_MODE) console.log('✅ Login successful, redirecting...');
           
           try {
             if (rememberMe.checked) {
@@ -1220,13 +1235,13 @@
               localStorage.removeItem('redirector_username');
             }
           } catch (err) {
-            console.error('Failed to save username:', err);
+            if (DEBUG_MODE) console.error('Failed to save username:', err);
           }
           
           window.location.href = '/admin';
         } else {
           loginAttempts++;
-          console.log(`❌ Login failed. Attempt ${loginAttempts}/${MAX_ATTEMPTS}`);
+          if (DEBUG_MODE) console.log(`❌ Login failed. Attempt ${loginAttempts}/${MAX_ATTEMPTS}`);
           
           updateAttemptDisplay();
           
@@ -1234,7 +1249,7 @@
             lockoutUntil = Date.now() + LOCKOUT_TIME;
             showRateLimit(`Account locked for 5 minutes due to too many failed attempts.`, true);
             disableForm(true);
-            console.warn(`🔒 Account locked until ${new Date(lockoutUntil).toISOString()}`);
+            if (DEBUG_MODE) console.warn(`🔒 Account locked until ${new Date(lockoutUntil).toISOString()}`);
           } else {
             const remaining = MAX_ATTEMPTS - loginAttempts;
             showError(data.error || 'Invalid username or password');
@@ -1291,7 +1306,7 @@
     // Handle back/forward cache
     window.addEventListener('pageshow', (event) => {
       if (event.persisted) {
-        console.log('📱 Page loaded from back/forward cache, reloading...');
+        if (DEBUG_MODE) console.log('📱 Page loaded from back/forward cache, reloading...');
         window.location.reload();
       }
     });
@@ -1315,7 +1330,7 @@
       if (url !== lastUrl) {
         lastUrl = url;
         if (location.search || location.hash) {
-          console.log('🧹 URL changed, cleaning parameters...');
+          if (DEBUG_MODE) console.log('🧹 URL changed, cleaning parameters...');
           const cleanUrl = location.protocol + '//' + 
                           location.host + 
                           location.pathname;
