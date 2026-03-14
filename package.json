@@ -1,47 +1,149 @@
 {
   "name": "redirector-pro",
-  "version": "3.0.0",
-  "description": "Advanced URL redirector with QR codes, admin UI, real-time monitoring, enterprise features",
+  "version": "3.1.0",
+  "description": "Enterprise-grade URL redirector with advanced encoding, real-time monitoring, anti-bot protection, and comprehensive analytics",
   "main": "server.js",
   "scripts": {
-    "prestart": "node generate-secrets.js --write",
+    "prestart": "node scripts/generate-secrets.js --write",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "prod": "NODE_ENV=production node server.js",
-    "pm2": "pm2 start server.js --name redirector-pro --max-memory-restart 512M",
-    "pm2-stop": "pm2 stop redirector-pro",
-    "pm2-restart": "pm2 restart redirector-pro",
-    "pm2-logs": "pm2 logs redirector-pro",
-    "pm2-monit": "pm2 monit",
-    "secrets": "node generate-secrets.js",
-    "secrets:write": "node generate-secrets.js --write",
-    "secrets:force": "node generate-secrets.js --force --write",
-    "migrate": "node scripts/migrate.js",
-    "migrate:create": "node scripts/create-migration.js",
+    "debug": "node --inspect server.js",
+    "inspect": "node --inspect-brk server.js",
+    
+    "pm2": "pm2 start ecosystem.config.js",
+    "pm2:start": "pm2 start server.js --name redirector-pro --max-memory-restart 512M --instances max",
+    "pm2:stop": "pm2 stop redirector-pro",
+    "pm2:restart": "pm2 restart redirector-pro",
+    "pm2:delete": "pm2 delete redirector-pro",
+    "pm2:logs": "pm2 logs redirector-pro",
+    "pm2:monit": "pm2 monit",
+    "pm2:status": "pm2 status",
+    "pm2:save": "pm2 save",
+    "pm2:startup": "pm2 startup",
+    
+    "secrets": "node scripts/generate-secrets.js",
+    "secrets:write": "node scripts/generate-secrets.js --write",
+    "secrets:force": "node scripts/generate-secrets.js --force --write",
+    "secrets:rotate": "node scripts/rotate-secrets.js",
+    
+    "db:migrate": "node scripts/migrate.js",
+    "db:migrate:create": "node scripts/create-migration.js",
+    "db:migrate:down": "node scripts/migrate-down.js",
     "db:setup": "node scripts/setup-database.js",
     "db:backup": "node scripts/backup-database.js",
     "db:restore": "node scripts/restore-database.js",
+    "db:seed": "node scripts/seed-database.js",
+    "db:reset": "node scripts/reset-database.js",
+    "db:analyze": "node scripts/analyze-database.js",
+    "db:vacuum": "node scripts/vacuum-database.js",
+    
     "clean": "node scripts/cleanup.js",
+    "clean:logs": "node scripts/clean-logs.js",
+    "clean:cache": "node scripts/clean-cache.js",
+    "clean:temp": "node scripts/clean-temp.js",
+    "clean:all": "npm run clean:logs && npm run clean:cache && npm run clean:temp",
+    
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --maxWorkers=2",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:e2e": "jest --testPathPattern=e2e",
+    "test:load": "artillery run tests/load/test.yml",
+    "test:api": "newman run tests/postman/collection.json -e tests/postman/environment.json",
+    "test:api:html": "newman run tests/postman/collection.json -e tests/postman/environment.json -r htmlextra --reporter-htmlextra-export tests/reports/api-test-report.html",
+    
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:strict": "eslint . --max-warnings=0",
+    
     "format": "prettier --write \"**/*.js\"",
+    "format:check": "prettier --check \"**/*.js\"",
+    
     "audit": "npm audit",
     "audit:fix": "npm audit fix",
+    "audit:fix:force": "npm audit fix --force",
+    
     "outdated": "npm outdated",
     "update": "npm update",
+    "update:check": "npx npm-check-updates",
+    "update:apply": "npx npm-check-updates -u && npm install",
+    
+    "security:scan": "node scripts/security-scan.js",
+    "security:audit": "npm audit --json > security-audit.json",
+    "security:check": "snyk test",
+    
     "docker:build": "docker build -t redirector-pro .",
+    "docker:build:no-cache": "docker build --no-cache -t redirector-pro .",
     "docker:run": "docker run -p 10000:10000 --env-file .env redirector-pro",
+    "docker:run:dev": "docker run -p 10000:10000 -v $(pwd):/app -v /app/node_modules --env-file .env.dev redirector-pro",
     "docker:compose": "docker-compose up -d",
+    "docker:compose:build": "docker-compose up -d --build",
     "docker:compose:down": "docker-compose down",
     "docker:compose:logs": "docker-compose logs -f",
+    "docker:compose:ps": "docker-compose ps",
+    "docker:compose:restart": "docker-compose restart",
+    "docker:compose:pull": "docker-compose pull",
+    "docker:compose:push": "docker-compose push",
+    
     "health": "curl http://localhost:10000/health",
-    "metrics": "curl http://localhost:10000/metrics?key=$METRICS_API_KEY",
+    "health:encoding": "curl http://localhost:10000/health/encoding",
+    "metrics": "curl -H 'X-API-Key: $METRICS_API_KEY' http://localhost:10000/metrics",
+    "metrics:prom": "curl http://localhost:10000/metrics",
+    
     "backup": "node scripts/backup.js",
+    "backup:full": "node scripts/backup.js --full",
+    "backup:config": "node scripts/backup.js --config",
+    "backup:logs": "node scripts/backup.js --logs",
+    
     "restore": "node scripts/restore.js",
-    "analyze": "node scripts/analyze-logs.js"
+    "restore:latest": "node scripts/restore.js --latest",
+    
+    "analyze": "node scripts/analyze-logs.js",
+    "analyze:requests": "node scripts/analyze-logs.js --type=requests",
+    "analyze:errors": "node scripts/analyze-logs.js --type=errors",
+    "analyze:performance": "node scripts/analyze-logs.js --type=performance",
+    "analyze:encoding": "node scripts/analyze-logs.js --type=encoding",
+    
+    "monitor": "node scripts/monitor.js",
+    "monitor:realtime": "node scripts/monitor.js --realtime",
+    "monitor:alerts": "node scripts/monitor.js --alerts",
+    
+    "cache:clear": "node scripts/clear-cache.js",
+    "cache:stats": "node scripts/cache-stats.js",
+    
+    "queue:clear": "node scripts/clear-queues.js",
+    "queue:stats": "node scripts/queue-stats.js",
+    
+    "docs": "node scripts/generate-docs.js",
+    "docs:serve": "npx serve docs",
+    
+    "validate:env": "node scripts/validate-env.js",
+    "validate:config": "node scripts/validate-config.js",
+    
+    "generate:qrcode": "node scripts/generate-qrcode.js",
+    "generate:test-links": "node scripts/generate-test-links.js",
+    
+    "report": "node scripts/generate-report.js",
+    "report:daily": "node scripts/generate-report.js --period=daily",
+    "report:weekly": "node scripts/generate-report.js --period=weekly",
+    "report:monthly": "node scripts/generate-report.js --period=monthly",
+    
+    "notify:slack": "node scripts/notify-slack.js",
+    "notify:email": "node scripts/notify-email.js",
+    "notify:webhook": "node scripts/notify-webhook.js",
+    
+    "maintenance": "node scripts/maintenance.js",
+    "maintenance:optimize": "node scripts/maintenance.js --optimize",
+    "maintenance:cleanup": "node scripts/maintenance.js --cleanup",
+    
+    "init": "npm install && npm run db:setup && npm run secrets:write",
+    "reset": "npm run clean:all && npm run db:reset && npm run secrets:force",
+    "update:all": "npm run update:check && npm run update:apply && npm run audit:fix",
+    "deploy": "npm run test && npm run build && npm run docker:compose:build",
+    "deploy:prod": "npm run test:ci && npm run docker:build && npm run docker:push"
   },
   "keywords": [
     "redirect", 
@@ -58,85 +160,102 @@
     "url-redirector",
     "click-tracker",
     "link-management",
-    "dashboard"
+    "dashboard",
+    "encoding",
+    "encryption",
+    "compression",
+    "rate-limiting",
+    "redis",
+    "postgresql",
+    "bull-queue",
+    "prometheus",
+    "socket-io"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "helmet": "^7.0.0",
-    "express-rate-limit": "^6.9.0",
-    "express-slow-down": "^1.6.0",
-    "node-cache": "^5.1.2",
-    "javascript-obfuscator": "^4.0.2",
-    "compression": "^1.7.4",
-    "morgan": "^1.10.0",
-    "express-validator": "^7.0.1",
-    "ua-parser-js": "^1.0.35",
-    "node-fetch": "^2.7.0",
-    "qrcode": "^1.5.3",
-    "socket.io": "^4.5.4",
-    "express-session": "^1.17.3",
+    "@bull-board/api": "^5.15.0",
+    "@bull-board/express": "^5.15.0",
+    "@bull-board/ui": "^5.15.0",
+    "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
-    "multer": "^1.4.5-lts.1",
-    "dotenv": "^16.0.3",
-    "redis": "^4.6.8",
+    "body-parser": "^1.20.2",
+    "bull": "^4.11.5",
+    "compression": "^1.7.4",
     "connect-redis": "^7.1.0",
-    "pg": "^8.11.0",
-    "bull": "^4.11.0",
-    "ioredis": "^5.3.0",
-    "prom-client": "^14.2.0",
-    "winston": "^3.9.0",
-    "joi": "^17.9.0",
-    "uuid": "^9.0.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
     "csurf": "^1.11.0",
-    "xss-clean": "^0.1.1",
-    "hpp": "^0.2.3",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^7.1.5",
+    "express-session": "^1.17.3",
+    "express-slow-down": "^2.0.0",
     "express-useragent": "^1.0.15",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "hpp": "^0.2.3",
+    "ioredis": "^5.3.2",
+    "javascript-obfuscator": "^4.1.0",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^2.7.0",
+    "nodemailer": "^6.9.7",
+    "pg": "^8.11.3",
+    "prom-client": "^14.2.0",
+    "qrcode": "^1.5.3",
+    "rate-limit-redis": "^4.1.0",
+    "redis": "^4.6.10",
     "response-time": "^2.3.2",
     "sanitize-html": "^2.11.0",
-    "cors": "^2.8.5",
-    "axios": "^1.4.0",
-    "jsonwebtoken": "^9.0.0",
-    "nodemailer": "^6.9.3",
-    "@bull-board/api": "^6.18.2",
-    "@bull-board/express": "^6.18.2",
-    "@bull-board/ui": "^6.18.2",
-    "swagger-ui-express": "^4.6.3",
+    "socket.io": "^4.5.4",
     "swagger-jsdoc": "^6.2.8",
-    "rate-limit-redis": "^3.0.0",
-    "express-mongo-sanitize": "^2.2.0",
-    "compression": "^1.7.4",
-    "cookie-parser": "^1.4.6",
-    "body-parser": "^1.20.2",
-    "moment": "^2.29.4",
-    "lodash": "^4.17.21",
-    "validator": "^13.9.0",
-    "zod": "^3.21.4"
+    "swagger-ui-express": "^5.0.0",
+    "ua-parser-js": "^1.0.37",
+    "uuid": "^9.0.1",
+    "validator": "^13.11.0",
+    "winston": "^3.11.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "xss-clean": "^0.1.4",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22",
-    "jest": "^29.5.0",
-    "supertest": "^6.3.3",
-    "eslint": "^8.42.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.27.5",
-    "eslint-plugin-jest": "^27.2.1",
-    "prettier": "^2.8.8",
-    "husky": "^8.0.3",
-    "lint-staged": "^13.2.2",
+    "@types/jest": "^29.5.10",
+    "@types/node": "^20.10.3",
+    "artillery": "^2.0.4",
     "cross-env": "^7.0.3",
+    "eslint": "^8.55.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-jest": "^27.6.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-security": "^2.1.0",
     "faker": "^5.5.3",
+    "husky": "^8.0.3",
+    "jest": "^29.7.0",
+    "lint-staged": "^15.2.0",
     "mock-fs": "^5.2.0",
-    "nock": "^13.3.1",
-    "sinon": "^15.1.0",
-    "artillery": "^2.0.0-31",
-    "newman": "^6.0.0",
-    "newman-reporter-htmlextra": "^1.23.1"
+    "newman": "^6.1.0",
+    "newman-reporter-htmlextra": "^1.23.1",
+    "nock": "^13.4.0",
+    "nodemon": "^3.0.2",
+    "npm-check-updates": "^16.14.11",
+    "prettier": "^3.1.0",
+    "sinon": "^17.0.1",
+    "supertest": "^6.3.3",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
   },
   "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
   "repository": {
     "type": "git",
@@ -152,25 +271,91 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js"],
     "coveragePathIgnorePatterns": [
-      "/node_modules/"
+      "/node_modules/",
+      "/tests/",
+      "/scripts/"
     ],
     "collectCoverageFrom": [
       "**/*.js",
       "!**/node_modules/**",
       "!**/coverage/**",
-      "!**/scripts/**"
-    ]
+      "!**/scripts/**",
+      "!**/tests/**",
+      "!**/public/**",
+      "!**/logs/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "setupFilesAfterEnv": ["./tests/setup.js"],
+    "testTimeout": 30000,
+    "verbose": true
   },
   "lint-staged": {
     "*.js": [
       "eslint --fix",
       "prettier --write"
+    ],
+    "*.json": [
+      "prettier --write"
     ]
   },
   "husky": {
     "hooks": {
-      "pre-commit": "lint-staged"
+      "pre-commit": "lint-staged",
+      "pre-push": "npm run test"
+    }
+  },
+  "nodemonConfig": {
+    "watch": ["server.js", "src/", "scripts/"],
+    "ignore": ["logs/*", "public/*", "tests/*"],
+    "ext": "js,json",
+    "env": {
+      "NODE_ENV": "development"
+    }
+  },
+  "prettier": {
+    "singleQuote": true,
+    "trailingComma": "es5",
+    "printWidth": 100,
+    "tabWidth": 2,
+    "semi": true,
+    "bracketSpacing": true,
+    "arrowParens": "always"
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true,
+      "jest": true,
+      "es2021": true
+    },
+    "extends": [
+      "eslint:recommended",
+      "airbnb-base",
+      "plugin:jest/recommended",
+      "plugin:security/recommended"
+    ],
+    "parserOptions": {
+      "ecmaVersion": 12,
+      "sourceType": "script"
+    },
+    "rules": {
+      "no-console": "off",
+      "no-unused-vars": ["error", { "argsIgnorePattern": "^next" }],
+      "max-len": ["error", { "code": 120 }],
+      "consistent-return": "off",
+      "func-names": "off",
+      "no-param-reassign": "off",
+      "no-underscore-dangle": "off",
+      "class-methods-use-this": "off",
+      "import/no-extraneous-dependencies": ["error", { "devDependencies": ["**/tests/**/*.js", "**/scripts/**/*.js"] }]
     }
   }
 }
