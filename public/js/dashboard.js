@@ -1,5 +1,5 @@
 // ============================================
-// Redirector Pro v4.0 - Main Application Logic
+// Redirector Pro v4.1.0 - Enterprise Dashboard
 // ============================================
 
 // Global variables injected from server
@@ -7,13 +7,14 @@
    ALLOW_LINK_MODE_SWITCH, LONG_LINK_SEGMENTS, LONG_LINK_PARAMS, 
    LINK_ENCODING_LAYERS, MAX_ENCODING_ITERATIONS, ENABLE_COMPRESSION,
    ENABLE_ENCRYPTION, BULL_BOARD_PATH, NODE_ENV, RATE_LIMIT_MAX, 
-   ENCODING_RATE_LIMIT */
+   ENCODING_RATE_LIMIT, MFA_ENABLED, WEBAUTHN_ENABLED, SESSION_TTL,
+   AUDIT_LOG_ENABLED, BACKUP_ENCRYPTION_ENABLED */
 
 // ============================================
 // State Management
 // ============================================
 let socket;
-let requestsChart, deviceChart, countryChart, analyticsDeviceChart;
+let requestsChart, deviceChart, countryChart, analyticsDeviceChart, performanceChart;
 let allLinks = [];
 let filteredLinks = [];
 let autoScroll = true;
@@ -23,10 +24,19 @@ let logCount = 0;
 let selectedLinkMode = typeof LINK_LENGTH_MODE !== 'undefined' ? LINK_LENGTH_MODE : 'short';
 let currentPage = 1;
 const pageSize = 20;
-let securityData = { blockedIPs: [], activeAttacks: [], totalAttempts: 0 };
+let securityData = { blockedIPs: [], activeAttacks: [], totalAttempts: 0, activeSessions: [] };
 let logFilter = 'all';
 let logRate = 0;
 let logRateCounter = 0;
+let encryptionKeys = [];
+let auditLogs = [];
+let backupStatus = {};
+let mfaSetupRequired = false;
+let activeAlerts = [];
+let notificationSound = false;
+let darkMode = true;
+let refreshInterval = 5000;
+let autoRefreshEnabled = true;
 
 // ============================================
 // Socket.IO Initialization
@@ -54,11 +64,30 @@ function initSocket() {
     socket.emit('command', { action: 'getLinks' });
     socket.emit('command', { action: 'getConfig' });
     socket.emit('command', { action: 'getCacheStats' });
+    socket.emit('command', { action: 'getSystemMetrics' });
+    
+    // Request encryption keys if on keys tab
+    const keysTab = document.getElementById('encryption-keys');
+    if (keysTab && keysTab.classList.contains('active')) {
+      fetchEncryptionKeys();
+    }
+    
+    // Request audit logs if on audit tab
+    const auditTab = document.getElementById('audit-log');
+    if (auditTab && auditTab.classList.contains('active')) {
+      fetchAuditLogs();
+    }
     
     // Request security data if on security tab
     const securityTab = document.getElementById('security');
     if (securityTab && securityTab.classList.contains('active')) {
       refreshSecurityData();
+    }
+    
+    // Request backup status if on backup tab
+    const backupTab = document.getElementById('backup');
+    if (backupTab && backupTab.classList.contains('active')) {
+      fetchBackupStatus();
     }
   });
   
@@ -82,6 +111,8 @@ function initSocket() {
     updateLinkModeStats(data.linkModes);
     updatePerformanceMetrics(data);
     updateEncodingStats(data.encodingStats);
+    updateSecurityMetrics(data);
+    updateRealtimeMetrics(data);
   });
   
   socket.on('config', (data) => {
@@ -96,12 +127,16 @@ function initSocket() {
   socket.on('log', (log) => {
     addLogEntry(log);
     logRateCounter++;
+    
+    // Check for alerts
+    checkForAlerts(log);
   });
   
   socket.on('link-generated', (data) => {
     console.log('🔗 Link generated:', data);
     showAlert('New link generated', 'info');
     refreshLinks();
+    playNotification('generated');
   });
   
   socket.on('link-deleted', () => {
@@ -123,6 +158,7 @@ function initSocket() {
   socket.on('notification', (notification) => {
     console.log('🔔 Notification:', notification);
     showAlert(notification.message, notification.type);
+    playNotification(notification.type);
   });
   
   socket.on('commandResult', (result) => {
@@ -131,6 +167,31 @@ function initSocket() {
   
   socket.on('systemMetrics', (metrics) => {
     updateSystemMetrics(metrics);
+  });
+  
+  socket.on('keys', (keys) => {
+    console.log('🔑 Encryption keys received:', keys);
+    encryptionKeys = keys;
+    renderEncryptionKeys();
+  });
+  
+  socket.on('audit', (entry) => {
+    console.log('📝 Audit log entry:', entry);
+    addAuditEntry(entry);
+  });
+  
+  socket.on('backup', (status) => {
+    console.log('💾 Backup status:', status);
+    backupStatus = status;
+    updateBackupStatus();
+  });
+  
+  socket.on('alert', (alert) => {
+    console.log('⚠️ Alert:', alert);
+    activeAlerts.push(alert);
+    showAlert(alert.message, alert.severity);
+    updateAlertBadge();
+    playNotification('alert');
   });
 }
 
@@ -143,6 +204,20 @@ setInterval(() => {
   }
   logRateCounter = 0;
 }, 1000);
+
+// Auto-refresh if enabled
+setInterval(() => {
+  if (autoRefreshEnabled && socket && socket.connected) {
+    const activeTab = document.querySelector('.tab-content.active')?.id;
+    if (activeTab === 'dashboard') {
+      socket.emit('command', { action: 'getStats' });
+    } else if (activeTab === 'links') {
+      socket.emit('command', { action: 'getLinks' });
+    } else if (activeTab === 'security') {
+      refreshSecurityData();
+    }
+  }
+}, refreshInterval);
 
 // ============================================
 // Event Listeners Setup
@@ -161,6 +236,8 @@ function setupEventListeners() {
   document.getElementById('testModalClose')?.addEventListener('click', closeTestModal);
   document.getElementById('healthModalClose')?.addEventListener('click', closeHealthModal);
   document.getElementById('qrModalClose')?.addEventListener('click', closeQRModal);
+  document.getElementById('keyModalClose')?.addEventListener('click', closeKeyModal);
+  document.getElementById('auditModalClose')?.addEventListener('click', closeAuditModal);
   
   // Navigation items
   document.querySelectorAll('.nav-item[data-tab]').forEach(item => {
@@ -297,7 +374,6 @@ function setupEventListeners() {
   if (showTimestampsCheckbox) {
     showTimestampsCheckbox.addEventListener('change', (e) => {
       showTimestamps = e.target.checked;
-      // Refresh log display
     });
   }
   
@@ -313,10 +389,13 @@ function setupEventListeners() {
   document.getElementById('clearGeoCache')?.addEventListener('click', () => clearCache('geo'));
   document.getElementById('clearQRCache')?.addEventListener('click', () => clearCache('qr'));
   document.getElementById('clearEncodingCache')?.addEventListener('click', () => clearCache('encoding'));
+  document.getElementById('clearDeviceCache')?.addEventListener('click', () => clearCache('device'));
   
   // Security
   document.getElementById('refreshSecurityBtn')?.addEventListener('click', refreshSecurityData);
   document.getElementById('clearAttemptsBtn')?.addEventListener('click', clearLoginAttempts);
+  document.getElementById('unblockIPBtn')?.addEventListener('click', showUnblockIPModal);
+  document.getElementById('revokeSessionBtn')?.addEventListener('click', showRevokeSessionModal);
   
   const botThresholdSlider = document.getElementById('botThresholdSlider');
   if (botThresholdSlider) {
@@ -331,14 +410,61 @@ function setupEventListeners() {
     });
   }
   
+  // Encryption keys
+  document.getElementById('rotateKeysBtn')?.addEventListener('click', rotateEncryptionKeys);
+  document.getElementById('backupKeysBtn')?.addEventListener('click', backupEncryptionKeys);
+  document.getElementById('viewKeyBtn')?.addEventListener('click', () => showKeyDetails());
+  
+  // Audit logs
+  document.getElementById('refreshAuditBtn')?.addEventListener('click', fetchAuditLogs);
+  document.getElementById('exportAuditBtn')?.addEventListener('click', exportAuditLogs);
+  document.getElementById('auditFilter')?.addEventListener('change', filterAuditLogs);
+  document.getElementById('auditDateRange')?.addEventListener('change', filterAuditLogs);
+  
+  // Backup
+  document.getElementById('runBackupBtn')?.addEventListener('click', runBackup);
+  document.getElementById('restoreBackupBtn')?.addEventListener('click', showRestoreModal);
+  document.getElementById('configureBackupBtn')?.addEventListener('click', showBackupConfig);
+  
   // Settings
   document.getElementById('saveLinkModeSettings')?.addEventListener('click', saveLinkModeSettings);
   document.getElementById('saveSystemSettings')?.addEventListener('click', saveSystemSettings);
+  document.getElementById('saveSecuritySettings')?.addEventListener('click', saveSecuritySettings);
+  document.getElementById('saveNotificationSettings')?.addEventListener('click', saveNotificationSettings);
   document.getElementById('reloadConfigBtn')?.addEventListener('click', reloadConfig);
   document.getElementById('viewHealthBtn')?.addEventListener('click', viewHealthCheck);
   
+  // Refresh interval
+  document.getElementById('refreshInterval')?.addEventListener('change', (e) => {
+    refreshInterval = parseInt(e.target.value) * 1000;
+  });
+  
+  document.getElementById('autoRefresh')?.addEventListener('change', (e) => {
+    autoRefreshEnabled = e.target.checked;
+  });
+  
+  // Notification sound
+  document.getElementById('notificationSound')?.addEventListener('change', (e) => {
+    notificationSound = e.target.checked;
+  });
+  
+  // Dark mode toggle
+  document.getElementById('darkModeToggle')?.addEventListener('change', (e) => {
+    darkMode = e.target.checked;
+    document.body.classList.toggle('light-mode', !darkMode);
+  });
+  
   // Initialize link mode
   selectLinkMode(selectedLinkMode);
+  
+  // Initialize dark mode
+  document.body.classList.toggle('light-mode', !darkMode);
+  
+  // Check for MFA setup
+  if (typeof MFA_ENABLED !== 'undefined' && MFA_ENABLED === 'true' && !localStorage.getItem('mfa_setup_completed')) {
+    mfaSetupRequired = true;
+    showMFASetupPrompt();
+  }
 }
 
 // ============================================
@@ -382,6 +508,12 @@ function showTab(tabId) {
     console.log('📋 Logs tab activated');
   } else if (tabId === 'security') {
     refreshSecurityData();
+  } else if (tabId === 'encryption-keys') {
+    fetchEncryptionKeys();
+  } else if (tabId === 'audit-log') {
+    fetchAuditLogs();
+  } else if (tabId === 'backup') {
+    fetchBackupStatus();
   }
 }
 
@@ -425,23 +557,32 @@ function selectLinkMode(mode) {
 }
 
 function applyLongLinkPreset(preset) {
-  let segments, params, layers;
+  let segments, params, layers, iterations;
   
   switch(preset) {
     case 'standard':
       segments = 6;
       params = 13;
       layers = 4;
+      iterations = 2;
       break;
     case 'aggressive':
       segments = 12;
       params = 20;
       layers = 6;
+      iterations = 3;
       break;
     case 'stealth':
       segments = 18;
       params = 28;
       layers = 8;
+      iterations = 4;
+      break;
+    case 'maximum':
+      segments = 20;
+      params = 30;
+      layers = 12;
+      iterations = 5;
       break;
     default:
       return;
@@ -450,37 +591,140 @@ function applyLongLinkPreset(preset) {
   const segmentsInput = document.getElementById('longLinkSegments');
   const paramsInput = document.getElementById('longLinkParams');
   const layersInput = document.getElementById('linkEncodingLayers');
+  const iterationsInput = document.getElementById('maxEncodingIterations');
   
   if (segmentsInput) segmentsInput.value = segments;
   if (paramsInput) paramsInput.value = params;
   if (layersInput) layersInput.value = layers;
+  if (iterationsInput) iterationsInput.value = iterations;
 }
 
 function showAlert(message, type = 'info') {
   const alert = document.getElementById('alert');
   if (!alert) return;
   
+  const icons = {
+    success: 'check-circle',
+    error: 'exclamation-circle',
+    warning: 'exclamation-triangle',
+    info: 'info-circle'
+  };
+  
   alert.className = `alert alert-${type}`;
   alert.innerHTML = `
     <div class="alert-icon">
-      <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+      <i class="fas fa-${icons[type] || 'info-circle'}"></i>
     </div>
     <div class="alert-content">
       <div class="alert-title">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
       <div class="alert-message">${message}</div>
     </div>
+    <button class="alert-close" onclick="this.parentElement.style.display='none'">
+      <i class="fas fa-times"></i>
+    </button>
   `;
   alert.style.display = 'flex';
   
+  // Auto-hide after 5 seconds for non-error messages
+  if (type !== 'error') {
+    setTimeout(() => {
+      if (alert.style.display === 'flex') {
+        alert.style.display = 'none';
+      }
+    }, 5000);
+  }
+}
+
+function playNotification(type) {
+  if (!notificationSound) return;
+  
+  const audio = new Audio();
+  switch(type) {
+    case 'generated':
+      audio.src = 'data:audio/wav;base64,UklGRlwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVgAAABAAECAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAA';
+      break;
+    case 'alert':
+      audio.src = 'data:audio/wav;base64,UklGRlwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YVgAAABAAECAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAAAICAAACAgAAAgIAA';
+      break;
+    default:
+      return;
+  }
+  audio.volume = 0.3;
+  audio.play().catch(() => {});
+}
+
+function updateAlertBadge() {
+  const alertBadge = document.getElementById('alertBadge');
+  if (alertBadge) {
+    alertBadge.textContent = activeAlerts.length;
+    alertBadge.style.display = activeAlerts.length > 0 ? 'flex' : 'none';
+  }
+}
+
+function checkForAlerts(log) {
+  // Check for suspicious patterns
+  if (log.type === 'rate-limit' && log.count > 10) {
+    activeAlerts.push({
+      id: Date.now(),
+      type: 'rate-limit',
+      severity: 'warning',
+      message: `High rate limiting from ${log.ip}`,
+      timestamp: new Date().toISOString()
+    });
+    updateAlertBadge();
+  }
+  
+  if (log.type === 'bot-block' && log.reason === 'explicit_bot') {
+    activeAlerts.push({
+      id: Date.now(),
+      type: 'bot',
+      severity: 'info',
+      message: `Bot detected: ${log.ip}`,
+      timestamp: new Date().toISOString()
+    });
+    updateAlertBadge();
+  }
+  
+  if (log.type === 'error' && log.error) {
+    activeAlerts.push({
+      id: Date.now(),
+      type: 'error',
+      severity: 'error',
+      message: `Error: ${log.error.substring(0, 50)}`,
+      timestamp: new Date().toISOString()
+    });
+    updateAlertBadge();
+  }
+}
+
+function showMFASetupPrompt() {
+  const prompt = document.createElement('div');
+  prompt.className = 'alert alert-warning mfa-prompt';
+  prompt.innerHTML = `
+    <i class="fas fa-shield-alt"></i>
+    <div class="mfa-prompt-content">
+      <strong>Two-Factor Authentication Available</strong>
+      <p>Enhance your account security by enabling 2FA</p>
+    </div>
+    <button class="btn btn-sm btn-primary" onclick="setupMFA()">Setup Now</button>
+    <button class="btn btn-sm btn-secondary" onclick="this.parentElement.remove()">Dismiss</button>
+  `;
+  document.body.appendChild(prompt);
+  
   setTimeout(() => {
-    alert.style.display = 'none';
-  }, 5000);
+    prompt.remove();
+  }, 30000);
+}
+
+function setupMFA() {
+  window.location.href = '/admin/setup-mfa';
 }
 
 function updateSocketStatus(status) {
   const socketStatus = document.getElementById('socketStatus');
   if (socketStatus) {
     socketStatus.className = `status-dot ${status}`;
+    socketStatus.title = `Socket ${status}`;
   }
 }
 
@@ -504,6 +748,7 @@ function updateStats(data) {
     const previous = lastMinute[lastMinute.length - 2]?.requests || 0;
     const trend = previous ? ((current - previous) / previous * 100).toFixed(1) : 0;
     requestTrendEl.textContent = (trend > 0 ? '+' : '') + trend + '%';
+    requestTrendEl.className = trend >= 0 ? 'trend-up' : 'trend-down';
   }
   
   // Block rate
@@ -525,7 +770,7 @@ function updateStats(data) {
 function updateLinkModeStats(modes) {
   const linkModesEl = document.getElementById('linkModes');
   if (modes && linkModesEl) {
-    linkModesEl.textContent = `S:${modes.short || 0} L:${modes.long || 0}`;
+    linkModesEl.textContent = `S:${modes.short || 0} L:${modes.long || 0} A:${modes.auto || 0}`;
   }
 }
 
@@ -534,12 +779,16 @@ function updateCacheStats(caches) {
   const cacheGeoEl = document.getElementById('cacheGeo');
   const cacheQREl = document.getElementById('cacheQR');
   const cacheEncodingEl = document.getElementById('cacheEncoding');
+  const cacheDeviceEl = document.getElementById('cacheDevice');
+  const cacheNonceEl = document.getElementById('cacheNonce');
   
   if (caches) {
     if (cacheLinksEl) cacheLinksEl.textContent = formatNumber(caches.linkReq || 0);
     if (cacheGeoEl) cacheGeoEl.textContent = formatNumber(caches.geo || 0);
     if (cacheQREl) cacheQREl.textContent = formatNumber(caches.qr || 0);
     if (cacheEncodingEl) cacheEncodingEl.textContent = formatNumber(caches.encoding || 0);
+    if (cacheDeviceEl) cacheDeviceEl.textContent = formatNumber(caches.device || 0);
+    if (cacheNonceEl) cacheNonceEl.textContent = formatNumber(caches.nonce || 0);
   }
 }
 
@@ -565,12 +814,16 @@ function updateDetailedCacheStats(stats) {
 function updatePerformanceMetrics(data) {
   const avgResponseTimeEl = document.getElementById('avgResponseTime');
   const p95TimeEl = document.getElementById('p95Time');
+  const p99TimeEl = document.getElementById('p99Time');
   const currentRPSEl = document.getElementById('currentRPS');
   const peakRPSEl = document.getElementById('peakRPS');
+  const totalResponseTimeEl = document.getElementById('totalResponseTime');
   
   if (data.performance) {
-    if (avgResponseTimeEl) avgResponseTimeEl.textContent = data.performance.avgResponseTime.toFixed(0) + 'ms';
-    if (p95TimeEl) p95TimeEl.textContent = data.performance.p95ResponseTime.toFixed(0) + 'ms';
+    if (avgResponseTimeEl) avgResponseTimeEl.textContent = data.performance.avgResponseTime?.toFixed(0) + 'ms' || '0ms';
+    if (p95TimeEl) p95TimeEl.textContent = data.performance.p95ResponseTime?.toFixed(0) + 'ms' || '0ms';
+    if (p99TimeEl) p99TimeEl.textContent = data.performance.p99ResponseTime?.toFixed(0) + 'ms' || '0ms';
+    if (totalResponseTimeEl) totalResponseTimeEl.textContent = formatDuration(data.performance.totalResponseTime || 0);
   }
   
   if (data.realtime) {
@@ -584,10 +837,14 @@ function updateEncodingStats(encodingStats) {
   const avgLayersEl = document.getElementById('avgLayers');
   const cacheHitRateEl = document.getElementById('cacheHitRate');
   const cacheSizeEl = document.getElementById('cacheSize');
+  const avgComplexityEl = document.getElementById('avgComplexity');
+  const avgDecodeTimeEl = document.getElementById('avgDecodeTime');
   
   if (encodingStats) {
     if (encodingStatsEl) encodingStatsEl.textContent = formatNumber(encodingStats.totalEncoded || 0);
     if (avgLayersEl) avgLayersEl.textContent = (encodingStats.avgLayers || 0).toFixed(1);
+    if (avgComplexityEl) avgComplexityEl.textContent = (encodingStats.avgComplexity || 0).toFixed(1);
+    if (avgDecodeTimeEl) avgDecodeTimeEl.textContent = (encodingStats.avgDecodeTime || 0).toFixed(0) + 'ms';
     
     // Cache hit rate
     const totalRequests = (encodingStats.cacheHits || 0) + (encodingStats.cacheMisses || 0);
@@ -597,13 +854,55 @@ function updateEncodingStats(encodingStats) {
   }
 }
 
+function updateSecurityMetrics(data) {
+  const botReasonsEl = document.getElementById('botReasons');
+  if (botReasonsEl && data.byBotReason) {
+    const reasons = Object.entries(data.byBotReason)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([reason, count]) => `<div><span>${reason}:</span> <span>${formatNumber(count)}</span></div>`)
+      .join('');
+    botReasonsEl.innerHTML = reasons || '<div>No data</div>';
+  }
+  
+  const signaturesValidEl = document.getElementById('signaturesValid');
+  const signaturesInvalidEl = document.getElementById('signaturesInvalid');
+  
+  if (data.signatures) {
+    if (signaturesValidEl) signaturesValidEl.textContent = formatNumber(data.signatures.valid || 0);
+    if (signaturesInvalidEl) signaturesInvalidEl.textContent = formatNumber(data.signatures.invalid || 0);
+  }
+}
+
+function updateRealtimeMetrics(data) {
+  const memoryUsageEl = document.getElementById('memoryUsage');
+  const cpuUsageEl = document.getElementById('cpuUsage');
+  const uptimeEl = document.getElementById('uptimeValue');
+  const systemUptimeEl = document.getElementById('systemUptime');
+  
+  if (data.system) {
+    if (memoryUsageEl) memoryUsageEl.textContent = formatBytes(data.system.memory || 0);
+    if (cpuUsageEl) cpuUsageEl.textContent = (data.system.cpu || 0).toFixed(1) + '%';
+    if (uptimeEl) uptimeEl.textContent = formatDuration(data.system.uptime || 0);
+    if (systemUptimeEl) systemUptimeEl.textContent = formatDuration(data.system.uptime || 0);
+  }
+}
+
 function updateSystemMetrics(metrics) {
   const memoryUsageEl = document.getElementById('memoryUsage');
   const cpuUsageEl = document.getElementById('cpuUsage');
+  const uptimeEl = document.getElementById('uptimeValue');
+  const systemUptimeEl = document.getElementById('systemUptime');
   
   if (metrics) {
     if (memoryUsageEl) memoryUsageEl.textContent = formatBytes(metrics.memory?.heapUsed || 0);
     if (cpuUsageEl) cpuUsageEl.textContent = (metrics.cpu || 0).toFixed(1) + '%';
+    if (uptimeEl) uptimeEl.textContent = formatDuration(metrics.uptime || 0);
+    if (systemUptimeEl) systemUptimeEl.textContent = formatDuration(metrics.uptime || 0);
+    
+    // Update connection metrics
+    const connectionsEl = document.getElementById('activeConnections');
+    if (connectionsEl) connectionsEl.textContent = metrics.connections || 0;
   }
 }
 
@@ -619,9 +918,14 @@ function updateConfig(data) {
   const longLinkSegments = document.getElementById('longLinkSegments');
   const longLinkParams = document.getElementById('longLinkParams');
   const linkEncodingLayers = document.getElementById('linkEncodingLayers');
+  const maxEncodingIterations = document.getElementById('maxEncodingIterations');
   const enableCompression = document.getElementById('enableCompression');
   const enableEncryption = document.getElementById('enableEncryption');
   const nodeEnv = document.getElementById('nodeEnv');
+  const dbStatus = document.getElementById('dbStatus');
+  const redisStatus = document.getElementById('redisStatus');
+  const queueStatus = document.getElementById('queueStatus');
+  const versionInfo = document.getElementById('versionInfo');
   
   if (data.linkLengthMode && settingLinkLengthMode) {
     settingLinkLengthMode.value = data.linkLengthMode;
@@ -643,6 +947,7 @@ function updateConfig(data) {
   }
   if (data.maxEncodingIterations && settingMaxEncodingIterations) {
     settingMaxEncodingIterations.value = data.maxEncodingIterations;
+    if (maxEncodingIterations) maxEncodingIterations.value = data.maxEncodingIterations;
   }
   if (data.enableCompression !== undefined) {
     if (settingEnableCompression) settingEnableCompression.checked = data.enableCompression;
@@ -655,17 +960,31 @@ function updateConfig(data) {
   if (data.nodeEnv && nodeEnv) {
     nodeEnv.textContent = data.nodeEnv;
   }
+  if (data.databaseEnabled && dbStatus) {
+    dbStatus.className = data.databaseEnabled ? 'status-dot connected' : 'status-dot disconnected';
+  }
+  if (data.redisEnabled && redisStatus) {
+    redisStatus.className = data.redisEnabled ? 'status-dot connected' : 'status-dot disconnected';
+  }
+  if (data.queuesEnabled && queueStatus) {
+    queueStatus.className = data.queuesEnabled ? 'status-dot connected' : 'status-dot disconnected';
+  }
+  if (data.version && versionInfo) {
+    versionInfo.textContent = data.version;
+  }
 }
 
 function updateCharts(data) {
   const ctx1 = document.getElementById('requestsChart')?.getContext('2d');
   const ctx2 = document.getElementById('deviceChart')?.getContext('2d');
+  const ctx3 = document.getElementById('performanceChart')?.getContext('2d');
   
   if (!ctx1 || !ctx2) return;
   
   // Destroy existing charts
   if (requestsChart) requestsChart.destroy();
   if (deviceChart) deviceChart.destroy();
+  if (performanceChart) performanceChart.destroy();
   
   // Prepare data based on time range
   const lastMinute = data.realtime?.lastMinute || [];
@@ -673,6 +992,8 @@ function updateCharts(data) {
   if (currentTimeRange === '5m') points = 300;
   else if (currentTimeRange === '15m') points = 900;
   else if (currentTimeRange === '1h') points = 3600;
+  else if (currentTimeRange === '6h') points = 21600;
+  else if (currentTimeRange === '24h') points = 86400;
   
   const recentData = lastMinute.slice(-Math.min(points, lastMinute.length));
   
@@ -764,7 +1085,8 @@ function updateCharts(data) {
           ticks: {
             color: '#666',
             maxRotation: 45,
-            minRotation: 45
+            minRotation: 45,
+            maxTicksLimit: 10
           }
         }
       }
@@ -816,6 +1138,47 @@ function updateCharts(data) {
       }
     }
   });
+  
+  // Performance Chart (if available)
+  if (ctx3 && data.performance?.responseTimes) {
+    const responseTimes = data.performance.responseTimes.slice(-100);
+    const responseLabels = responseTimes.map((_, i) => i);
+    
+    performanceChart = new Chart(ctx3, {
+      type: 'line',
+      data: {
+        labels: responseLabels,
+        datasets: [{
+          label: 'Response Time (ms)',
+          data: responseTimes,
+          borderColor: '#7aa2f7',
+          backgroundColor: 'rgba(122, 162, 247, 0.1)',
+          tension: 0.4,
+          fill: true,
+          pointRadius: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: '#666' }
+          },
+          x: {
+            display: false
+          }
+        }
+      }
+    });
+  }
 }
 
 function updateCountryStats(countries) {
@@ -898,6 +1261,9 @@ function addLogEntry(log) {
   } else if (type === 'long-link-decode') {
     typeClass = 'type-generate';
     typeIcon = '🔓';
+  } else if (type === 'signature') {
+    typeClass = 'type-success';
+    typeIcon = '✅';
   }
   
   // Device icon
@@ -939,13 +1305,17 @@ function addLogEntry(log) {
     logHtml += ` <span style="color: #7aa2f7;">[complexity: ${log.complexity}]</span>`;
   }
   
+  if (log.version) {
+    logHtml += ` <span style="color: #9ece6a;">[v${log.version}]</span>`;
+  }
+  
   entry.innerHTML = logHtml;
   
   // Add to logs
   logs.insertBefore(entry, logs.firstChild);
   
   // Limit number of log entries
-  if (logs.children.length > 500) {
+  if (logs.children.length > 1000) {
     logs.removeChild(logs.lastChild);
   }
   
@@ -970,7 +1340,8 @@ function filterAndRenderLinks() {
     if (modeFilter !== 'all' && link.link_mode !== modeFilter) return false;
     if (search) {
       return (link.id && link.id.toLowerCase().includes(search)) || 
-             (link.target_url && link.target_url.toLowerCase().includes(search));
+             (link.target_url && link.target_url.toLowerCase().includes(search)) ||
+             (link.notes && link.notes.toLowerCase().includes(search));
     }
     return true;
   });
@@ -994,7 +1365,7 @@ function renderLinksTable() {
     if (tbody) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align: center; padding: 2rem;">
+          <td colspan="9" style="text-align: center; padding: 2rem;">
             <i class="fas fa-link"></i> No links found
           </td>
         </tr>
@@ -1032,6 +1403,7 @@ function renderLinksTable() {
             ${link.link_mode || 'short'}
           </span>
           ${link.link_length ? `<small style="color:#666;">${link.link_length}c</small>` : ''}
+          ${link.encoding_layers ? `<small style="color:#666;"> (${link.encoding_layers} layers)</small>` : ''}
         </td>
         <td>
           <a href="${link.target_url}" target="_blank" rel="noopener" style="color: #8a8a8a; text-decoration: none;">
@@ -1050,12 +1422,18 @@ function renderLinksTable() {
           </span>
         </td>
         <td>
+          <span class="badge badge-info">v${link.api_version || '1'}</span>
+        </td>
+        <td>
           <div class="btn-group" style="gap: 0.25rem;">
             <button class="btn btn-sm btn-secondary view-link" data-link-id="${link.id}" title="View Details">
               <i class="fas fa-eye"></i>
             </button>
             <button class="btn btn-sm btn-secondary copy-link" data-link-id="${link.id}" title="Copy Link">
               <i class="fas fa-copy"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary qr-link" data-link-id="${link.id}" title="Generate QR">
+              <i class="fas fa-qrcode"></i>
             </button>
             <button class="btn btn-sm btn-danger delete-link" data-link-id="${link.id}" title="Delete">
               <i class="fas fa-trash"></i>
@@ -1072,6 +1450,13 @@ function renderLinksTable() {
     
     document.querySelectorAll('.copy-link').forEach(btn => {
       btn.addEventListener('click', () => copyLink(btn.dataset.linkId));
+    });
+    
+    document.querySelectorAll('.qr-link').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = window.location.origin + '/v/' + btn.dataset.linkId;
+        showQRModal(url, 300);
+      });
     });
     
     document.querySelectorAll('.delete-link').forEach(btn => {
@@ -1119,7 +1504,7 @@ async function generateLink() {
     const longLinkSegments = document.getElementById('longLinkSegments')?.value;
     const longLinkParams = document.getElementById('longLinkParams')?.value;
     const linkEncodingLayers = document.getElementById('linkEncodingLayers')?.value;
-    const maxEncodingIterations = document.getElementById('settingMaxEncodingIterations')?.value;
+    const maxEncodingIterations = document.getElementById('maxEncodingIterations')?.value;
     const enableCompression = document.getElementById('enableCompression');
     const enableEncryption = document.getElementById('enableEncryption');
     
@@ -1133,10 +1518,10 @@ async function generateLink() {
     
     // Add compression/encryption options
     if (enableCompression) {
-      body.longLinkOptions.compression = enableCompression.checked;
+      body.longLinkOptions.enableCompression = enableCompression.checked;
     }
     if (enableEncryption) {
-      body.longLinkOptions.encryption = enableEncryption.checked;
+      body.longLinkOptions.enableEncryption = enableEncryption.checked;
     }
   }
   
@@ -1165,6 +1550,7 @@ async function generateLink() {
       const encodingComplexity = document.getElementById('encodingComplexity');
       const encodingIterations = document.getElementById('encodingIterations');
       const encodingTime = document.getElementById('encodingTime');
+      const apiVersion = document.getElementById('apiVersion');
       
       if (generatedUrl) generatedUrl.value = data.url;
       if (generatedId) generatedId.textContent = data.id;
@@ -1172,6 +1558,7 @@ async function generateLink() {
       if (generatedPassword) generatedPassword.textContent = data.passwordProtected ? 'Yes' : 'No';
       if (generatedLength) generatedLength.textContent = data.linkLength + ' chars';
       if (generatedMode) generatedMode.textContent = (data.mode || 'short').toUpperCase() + ' Link';
+      if (apiVersion) apiVersion.textContent = data.metadata?.apiVersion || 'v1';
       if (result) result.style.display = 'block';
       
       // Show encoding details for long links
@@ -1312,6 +1699,13 @@ async function getLinkStats() {
             </div>
             <div class="stat-value" style="font-size: 1.25rem;">${stats.linkLength || 0} chars</div>
           </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <span class="stat-title">Avg Decode Time</span>
+              <span class="stat-icon"><i class="fas fa-clock"></i></span>
+            </div>
+            <div class="stat-value">${(stats.avg_decoding_time || 0).toFixed(0)}ms</div>
+          </div>
         `;
         
         const recentHtml = stats.recentClicks?.map(click => `
@@ -1429,6 +1823,7 @@ async function viewLink(linkId) {
           <p><strong>Clicks:</strong> ${formatNumber(stats.clicks || 0)}${stats.maxClicks ? '/' + formatNumber(stats.maxClicks) : ''}</p>
           <p><strong>Unique Visitors:</strong> ${formatNumber(stats.uniqueVisitors || 0)}</p>
           <p><strong>Password Protected:</strong> ${stats.passwordProtected ? 'Yes' : 'No'}</p>
+          <p><strong>API Version:</strong> v${stats.apiVersion || '1'}</p>
           ${stats.notes ? `<p><strong>Notes:</strong> ${stats.notes}</p>` : ''}
           ${stats.linkLength ? `<p><strong>URL Length:</strong> ${stats.linkLength} characters</p>` : ''}
           ${stats.encodingLayers ? `<p><strong>Encoding Layers:</strong> ${stats.encodingLayers}</p>` : ''}
@@ -1541,6 +1936,7 @@ async function testLinkModes() {
               <th>Length</th>
               <th>Ratio</th>
               <th>Time</th>
+              <th>Complexity</th>
             </tr>
           </thead>
           <tbody>
@@ -1555,6 +1951,7 @@ async function testLinkModes() {
             <td>${link.length} chars</td>
             <td>${(link.length / data.originalLength).toFixed(2)}x</td>
             <td>${link.encodingTime.toFixed(0)}ms</td>
+            <td>${link.complexity || 'N/A'}</td>
           </tr>
         `;
       });
@@ -1621,12 +2018,46 @@ function updateSecurityTables() {
           <td>${ip.ip}</td>
           <td>${ip.reason || 'Unknown'}</td>
           <td>${new Date(ip.expires_at).toLocaleString()}</td>
+          <td>
+            <button class="btn btn-sm btn-danger unblock-ip" data-ip="${ip.ip}">
+              <i class="fas fa-ban"></i> Unblock
+            </button>
+          </td>
         </tr>
       `).join('');
       if (blockedCount) blockedCount.textContent = securityData.blockedIPs.length;
+      
+      document.querySelectorAll('.unblock-ip').forEach(btn => {
+        btn.addEventListener('click', () => unblockIP(btn.dataset.ip));
+      });
     } else {
-      blockedTable.innerHTML = '<tr><td colspan="3">No blocked IPs</td></tr>';
+      blockedTable.innerHTML = '<tr><td colspan="4">No blocked IPs</td></tr>';
       if (blockedCount) blockedCount.textContent = '0';
+    }
+  }
+  
+  // Active sessions
+  const sessionsTable = document.getElementById('activeSessionsTable');
+  if (sessionsTable) {
+    if (securityData.activeSessions?.length > 0) {
+      sessionsTable.innerHTML = securityData.activeSessions.map(session => `
+        <tr>
+          <td>${session.user_id || 'anonymous'}</td>
+          <td>${session.ip}</td>
+          <td>${new Date(session.created_at).toLocaleString()}</td>
+          <td>
+            <button class="btn btn-sm btn-danger revoke-session" data-session="${session.session_id}">
+              <i class="fas fa-ban"></i> Revoke
+            </button>
+          </td>
+        </tr>
+      `).join('');
+      
+      document.querySelectorAll('.revoke-session').forEach(btn => {
+        btn.addEventListener('click', () => revokeSession(btn.dataset.session));
+      });
+    } else {
+      sessionsTable.innerHTML = '<tr><td colspan="4">No active sessions</td></tr>';
     }
   }
   
@@ -1636,6 +2067,62 @@ function updateSecurityTables() {
 
 function clearLoginAttempts() {
   showAlert('Login attempts cleared', 'success');
+}
+
+function showUnblockIPModal() {
+  const ip = prompt('Enter IP address to unblock:');
+  if (ip) unblockIP(ip);
+}
+
+async function unblockIP(ip) {
+  try {
+    const res = await fetch('/admin/unblock-ip', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+      },
+      body: JSON.stringify({ ip }),
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      showAlert(`IP ${ip} unblocked`, 'success');
+      refreshSecurityData();
+    } else {
+      showAlert('Failed to unblock IP', 'error');
+    }
+  } catch (err) {
+    showAlert('Network error', 'error');
+  }
+}
+
+function showRevokeSessionModal() {
+  const sessionId = prompt('Enter session ID to revoke:');
+  if (sessionId) revokeSession(sessionId);
+}
+
+async function revokeSession(sessionId) {
+  try {
+    const res = await fetch('/admin/revoke-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+      },
+      body: JSON.stringify({ sessionId }),
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      showAlert('Session revoked', 'success');
+      refreshSecurityData();
+    } else {
+      showAlert('Failed to revoke session', 'error');
+    }
+  } catch (err) {
+    showAlert('Network error', 'error');
+  }
 }
 
 async function updateBotThreshold(threshold) {
@@ -1662,6 +2149,283 @@ async function updateBotThreshold(threshold) {
 }
 
 // ============================================
+// Encryption Key Functions
+// ============================================
+async function fetchEncryptionKeys() {
+  try {
+    const res = await fetch('/admin/keys');
+    if (res.ok) {
+      const data = await res.json();
+      encryptionKeys = data.keys || [];
+      renderEncryptionKeys();
+      
+      const currentKeyEl = document.getElementById('currentKeyId');
+      if (currentKeyEl && data.currentKey) {
+        currentKeyEl.textContent = `${data.currentKey.id.substring(0, 8)}... (v${data.currentKey.version})`;
+      }
+    }
+  } catch (err) {
+    showAlert('Failed to load encryption keys', 'error');
+  }
+}
+
+function renderEncryptionKeys() {
+  const keysTable = document.getElementById('keysTableBody');
+  if (!keysTable) return;
+  
+  if (encryptionKeys.length === 0) {
+    keysTable.innerHTML = '<tr><td colspan="6">No encryption keys found</td></tr>';
+    return;
+  }
+  
+  keysTable.innerHTML = encryptionKeys.map(key => `
+    <tr>
+      <td><code>${key.id.substring(0, 8)}...</code></td>
+      <td>${key.version}</td>
+      <td>${new Date(key.createdAt).toLocaleString()}</td>
+      <td>${new Date(key.expiresAt).toLocaleString()}</td>
+      <td>
+        ${key.isCurrent ? '<span class="badge badge-success">Current</span>' : ''}
+      </td>
+      <td>
+        <button class="btn btn-sm btn-secondary view-key" data-key-id="${key.id}">
+          <i class="fas fa-eye"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+  
+  document.querySelectorAll('.view-key').forEach(btn => {
+    btn.addEventListener('click', () => showKeyDetails(btn.dataset.keyId));
+  });
+}
+
+async function rotateEncryptionKeys() {
+  if (!confirm('Are you sure you want to rotate encryption keys? This will generate a new key.')) {
+    return;
+  }
+  
+  try {
+    const res = await fetch('/admin/keys/rotate', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      showAlert(`New key generated: ${data.keyId.substring(0, 8)}...`, 'success');
+      fetchEncryptionKeys();
+    } else {
+      showAlert('Failed to rotate keys', 'error');
+    }
+  } catch (err) {
+    showAlert('Network error', 'error');
+  }
+}
+
+async function backupEncryptionKeys() {
+  try {
+    const res = await fetch('/admin/keys/backup', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `keys-backup-${new Date().toISOString()}.enc`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      showAlert('Keys backup downloaded', 'success');
+    } else {
+      showAlert('Failed to backup keys', 'error');
+    }
+  } catch (err) {
+    showAlert('Network error', 'error');
+  }
+}
+
+function showKeyDetails(keyId) {
+  const key = encryptionKeys.find(k => k.id === keyId);
+  if (!key) return;
+  
+  const modalContent = `
+    <div style="margin-bottom: 1.5rem;">
+      <p><strong>Key ID:</strong> <code>${key.id}</code></p>
+      <p><strong>Version:</strong> ${key.version}</p>
+      <p><strong>Created:</strong> ${new Date(key.createdAt).toLocaleString()}</p>
+      <p><strong>Expires:</strong> ${new Date(key.expiresAt).toLocaleString()}</p>
+      <p><strong>Status:</strong> ${key.isCurrent ? '<span class="badge badge-success">Current</span>' : '<span class="badge badge-info">Archived</span>'}</p>
+      <p><strong>Age:</strong> ${formatDuration((Date.now() - new Date(key.createdAt)) / 1000)}</p>
+    </div>
+  `;
+  
+  document.getElementById('keyModalContent').innerHTML = modalContent;
+  document.getElementById('keyModal').classList.add('active');
+}
+
+// ============================================
+// Audit Log Functions
+// ============================================
+async function fetchAuditLogs() {
+  try {
+    const res = await fetch('/admin/audit/logs');
+    if (res.ok) {
+      const data = await res.json();
+      auditLogs = data.logs || [];
+      renderAuditLogs();
+    }
+  } catch (err) {
+    showAlert('Failed to load audit logs', 'error');
+  }
+}
+
+function renderAuditLogs() {
+  const logsTable = document.getElementById('auditLogsBody');
+  if (!logsTable) return;
+  
+  if (auditLogs.length === 0) {
+    logsTable.innerHTML = '<tr><td colspan="5">No audit logs found</td></tr>';
+    return;
+  }
+  
+  logsTable.innerHTML = auditLogs.map(log => `
+    <tr>
+      <td>${new Date(log.timestamp).toLocaleString()}</td>
+      <td><span class="badge badge-info">${log.action}</span></td>
+      <td>${log.user || 'system'}</td>
+      <td>${log.ip || 'N/A'}</td>
+      <td>${JSON.stringify(log.details || {})}</td>
+    </tr>
+  `).join('');
+}
+
+function filterAuditLogs() {
+  // Implement filtering logic
+  console.log('Filtering audit logs...');
+}
+
+function exportAuditLogs() {
+  const dataStr = JSON.stringify(auditLogs, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `audit-logs-${new Date().toISOString()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showAlert('Audit logs exported', 'success');
+}
+
+function addAuditEntry(entry) {
+  auditLogs.unshift(entry);
+  if (auditLogs.length > 1000) {
+    auditLogs.pop();
+  }
+  
+  const activeTab = document.querySelector('.tab-content.active')?.id;
+  if (activeTab === 'audit-log') {
+    renderAuditLogs();
+  }
+}
+
+// ============================================
+// Backup Functions
+// ============================================
+async function fetchBackupStatus() {
+  try {
+    const res = await fetch('/admin/backup/status');
+    if (res.ok) {
+      backupStatus = await res.json();
+      updateBackupStatus();
+    }
+  } catch (err) {
+    showAlert('Failed to load backup status', 'error');
+  }
+}
+
+function updateBackupStatus() {
+  const lastBackupEl = document.getElementById('lastBackup');
+  const backupCountEl = document.getElementById('backupCount');
+  const backupSizeEl = document.getElementById('backupSize');
+  
+  if (lastBackupEl && backupStatus.lastBackup) {
+    lastBackupEl.textContent = new Date(backupStatus.lastBackup).toLocaleString();
+  }
+  if (backupCountEl) {
+    backupCountEl.textContent = backupStatus.count || 0;
+  }
+  if (backupSizeEl) {
+    backupSizeEl.textContent = formatBytes(backupStatus.totalSize || 0);
+  }
+}
+
+async function runBackup() {
+  try {
+    const res = await fetch('/admin/backup/run', {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+      },
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      showAlert('Backup started', 'success');
+      fetchBackupStatus();
+    } else {
+      showAlert('Failed to start backup', 'error');
+    }
+  } catch (err) {
+    showAlert('Network error', 'error');
+  }
+}
+
+function showRestoreModal() {
+  const backupId = prompt('Enter backup ID to restore:');
+  if (backupId) restoreBackup(backupId);
+}
+
+async function restoreBackup(backupId) {
+  if (!confirm('Are you sure you want to restore this backup? This will overwrite current data.')) {
+    return;
+  }
+  
+  try {
+    const res = await fetch('/admin/backup/restore', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+      },
+      body: JSON.stringify({ backupId }),
+      credentials: 'include'
+    });
+    
+    if (res.ok) {
+      showAlert('Backup restored', 'success');
+    } else {
+      showAlert('Failed to restore backup', 'error');
+    }
+  } catch (err) {
+    showAlert('Network error', 'error');
+  }
+}
+
+function showBackupConfig() {
+  // Open backup configuration modal or page
+  window.location.href = '/admin/backup/config';
+}
+
+// ============================================
 // Settings Functions
 // ============================================
 async function saveLinkModeSettings() {
@@ -1673,6 +2437,7 @@ async function saveLinkModeSettings() {
   const settingMaxEncodingIterations = document.getElementById('settingMaxEncodingIterations');
   const settingEnableCompression = document.getElementById('settingEnableCompression');
   const settingEnableEncryption = document.getElementById('settingEnableEncryption');
+  const settingEncodingComplexityThreshold = document.getElementById('settingEncodingComplexityThreshold');
   
   const settings = {
     linkLengthMode: settingLinkLengthMode ? settingLinkLengthMode.value : 'short',
@@ -1682,7 +2447,8 @@ async function saveLinkModeSettings() {
     linkEncodingLayers: parseInt(settingLinkEncodingLayers ? settingLinkEncodingLayers.value : 4),
     maxEncodingIterations: parseInt(settingMaxEncodingIterations ? settingMaxEncodingIterations.value : 3),
     enableCompression: settingEnableCompression ? settingEnableCompression.checked : true,
-    enableEncryption: settingEnableEncryption ? settingEnableEncryption.checked : false
+    enableEncryption: settingEnableEncryption ? settingEnableEncryption.checked : false,
+    encodingComplexityThreshold: parseInt(settingEncodingComplexityThreshold ? settingEncodingComplexityThreshold.value : 50)
   };
   
   try {
@@ -1721,13 +2487,17 @@ async function saveSystemSettings() {
   const settingBotDetection = document.getElementById('settingBotDetection');
   const settingAnalytics = document.getElementById('settingAnalytics');
   const settingLogLevel = document.getElementById('settingLogLevel');
+  const settingLogFormat = document.getElementById('settingLogFormat');
+  const settingLogRetention = document.getElementById('settingLogRetention');
   
   const settings = {
     linkTTL: parseInt(settingLinkTTL ? settingLinkTTL.value : 1800),
     desktopChallenge: settingDesktopChallenge ? settingDesktopChallenge.checked : true,
     botDetection: settingBotDetection ? settingBotDetection.checked : true,
     analytics: settingAnalytics ? settingAnalytics.checked : true,
-    logLevel: settingLogLevel ? settingLogLevel.value : 'info'
+    logLevel: settingLogLevel ? settingLogLevel.value : 'info',
+    logFormat: settingLogFormat ? settingLogFormat.value : 'json',
+    logRetentionDays: parseInt(settingLogRetention ? settingLogRetention.value : 30)
   };
   
   // Save each setting individually
@@ -1748,6 +2518,72 @@ async function saveSystemSettings() {
   }
   
   showAlert('System settings saved', 'success');
+}
+
+async function saveSecuritySettings() {
+  const settingBCryptRounds = document.getElementById('settingBCryptRounds');
+  const settingSessionTTL = document.getElementById('settingSessionTTL');
+  const settingLoginAttempts = document.getElementById('settingLoginAttempts');
+  const settingCSRFEnabled = document.getElementById('settingCSRFEnabled');
+  const settingCSPEnabled = document.getElementById('settingCSPEnabled');
+  const settingHSTSEnabled = document.getElementById('settingHSTSEnabled');
+  
+  const settings = {
+    bcryptRounds: parseInt(settingBCryptRounds ? settingBCryptRounds.value : 12),
+    sessionTTL: parseInt(settingSessionTTL ? settingSessionTTL.value : 86400),
+    loginAttempts: parseInt(settingLoginAttempts ? settingLoginAttempts.value : 10),
+    csrfEnabled: settingCSRFEnabled ? settingCSRFEnabled.checked : true,
+    cspEnabled: settingCSPEnabled ? settingCSPEnabled.checked : true,
+    hstsEnabled: settingHSTSEnabled ? settingHSTSEnabled.checked : true
+  };
+  
+  for (const [key, value] of Object.entries(settings)) {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+        },
+        body: JSON.stringify({ key, value }),
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.error('Failed to save setting:', key, err);
+    }
+  }
+  
+  showAlert('Security settings saved', 'success');
+}
+
+async function saveNotificationSettings() {
+  const settingNotificationSound = document.getElementById('settingNotificationSound');
+  const settingAlertEmail = document.getElementById('settingAlertEmail');
+  const settingSlackWebhook = document.getElementById('settingSlackWebhook');
+  
+  const settings = {
+    notificationSound: settingNotificationSound ? settingNotificationSound.checked : false,
+    alertEmail: settingAlertEmail ? settingAlertEmail.value : '',
+    slackWebhook: settingSlackWebhook ? settingSlackWebhook.value : ''
+  };
+  
+  for (const [key, value] of Object.entries(settings)) {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : ''
+        },
+        body: JSON.stringify({ key, value }),
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.error('Failed to save setting:', key, err);
+    }
+  }
+  
+  showAlert('Notification settings saved', 'success');
 }
 
 async function reloadConfig() {
@@ -1842,17 +2678,27 @@ function formatNumber(num) {
 function formatBytes(bytes) {
   if (bytes === 0 || !bytes) return '0 B';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 function formatDuration(seconds) {
-  if (!seconds) return '0s';
-  if (seconds < 60) return seconds + 's';
-  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
-  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ' + Math.floor((seconds % 3600) / 60) + 'm';
-  return Math.floor(seconds / 86400) + 'd ' + Math.floor((seconds % 86400) / 3600) + 'h';
+  if (!seconds || seconds < 0) return '0s';
+  if (seconds < 60) return Math.floor(seconds) + 's';
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return mins + 'm ' + (secs > 0 ? secs + 's' : '');
+  }
+  if (seconds < 86400) {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return hours + 'h ' + (mins > 0 ? mins + 'm' : '');
+  }
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  return days + 'd ' + (hours > 0 ? hours + 'h' : '');
 }
 
 function refreshLinks() {
@@ -1912,10 +2758,10 @@ function clearLogs() {
   logCount = 0;
   
   const logCounter = document.getElementById('logCounter');
-  const logRate = document.getElementById('logRate');
+  const logRateEl = document.getElementById('logRate');
   
   if (logCounter) logCounter.textContent = '0';
-  if (logRate) logRate.textContent = '0 logs/sec';
+  if (logRateEl) logRateEl.textContent = '0 logs/sec';
   showAlert('Logs cleared', 'success');
 }
 
@@ -1965,6 +2811,9 @@ async function clearCache(type) {
   } else if (type === 'encoding') {
     action = 'clearEncodingCache';
     message = 'encoding cache';
+  } else if (type === 'device') {
+    action = 'clearDeviceCache';
+    message = 'device cache';
   }
   
   if (!confirm(`Are you sure you want to clear ${message}?`)) return;
@@ -2013,6 +2862,14 @@ function closeQRModal() {
   document.getElementById('qrModal')?.classList.remove('active');
 }
 
+function closeKeyModal() {
+  document.getElementById('keyModal')?.classList.remove('active');
+}
+
+function closeAuditModal() {
+  document.getElementById('auditModal')?.classList.remove('active');
+}
+
 // ============================================
 // Click outside to close modal
 // ============================================
@@ -2033,6 +2890,14 @@ window.onclick = function(event) {
   if (event.target === qrModal) {
     closeQRModal();
   }
+  const keyModal = document.getElementById('keyModal');
+  if (event.target === keyModal) {
+    closeKeyModal();
+  }
+  const auditModal = document.getElementById('auditModal');
+  if (event.target === auditModal) {
+    closeAuditModal();
+  }
 };
 
 // Handle escape key
@@ -2042,6 +2907,8 @@ document.addEventListener('keydown', (e) => {
     closeTestModal();
     closeHealthModal();
     closeQRModal();
+    closeKeyModal();
+    closeAuditModal();
   }
 });
 
@@ -2107,15 +2974,24 @@ fetch('/health')
 // Initialize everything
 // ============================================
 function init() {
-  console.log('🚀 Initializing admin dashboard...');
+  console.log('🚀 Initializing admin dashboard v4.1.0...');
   console.log('Environment:', typeof NODE_ENV !== 'undefined' ? NODE_ENV : 'unknown');
   console.log('Link Mode:', typeof LINK_LENGTH_MODE !== 'undefined' ? LINK_LENGTH_MODE : 'short');
+  console.log('MFA Enabled:', typeof MFA_ENABLED !== 'undefined' ? MFA_ENABLED : 'false');
+  console.log('WebAuthn Enabled:', typeof WEBAUTHN_ENABLED !== 'undefined' ? WEBAUTHN_ENABLED : 'false');
   
   initSocket();
   setupEventListeners();
   
   // Initialize the first tab
   showTab('dashboard');
+  
+  // Load security data in background
+  setTimeout(() => {
+    refreshSecurityData();
+    fetchEncryptionKeys();
+    fetchBackupStatus();
+  }, 1000);
 }
 
 // Start the application when DOM is ready
