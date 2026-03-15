@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Redirector Pro v4.0 | Enterprise Command Center</title>
+  <title>Redirector Pro v4.1.0 | Enterprise Command Center</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <meta name="theme-color" content="#000000">
   <meta name="color-scheme" content="dark">
+  <meta name="description" content="Enterprise-grade URL redirector with advanced security features">
+  <meta name="robots" content="noindex, nofollow">
+  
   <!-- Disable source maps to prevent CSP errors -->
   <meta http-equiv="Content-Security-Policy" content="connect-src 'self' ws: wss: https://cdn.socket.io https://cdn.jsdelivr.net https://ipinfo.io;">
   
@@ -68,6 +71,10 @@
       --info-50: #1a2633;
       --info-500: #3b82f6;
       --info-600: #2563eb;
+      --info-700: #1d4ed8;
+      
+      --purple-500: #a78bfa;
+      --purple-600: #8b5cf6;
       
       /* Spacing */
       --spacing-xs: 0.25rem;
@@ -113,6 +120,94 @@
       --container-max-width: 1440px;
     }
     
+    /* Light Theme Variables */
+    body.light-mode {
+      --primary-50: #f5f5f5;
+      --primary-100: #e5e5e5;
+      --primary-200: #d4d4d4;
+      --primary-300: #a3a3a3;
+      --primary-400: #737373;
+      --primary-500: #525252;
+      --primary-600: #404040;
+      --primary-700: #262626;
+      --primary-800: #171717;
+      --primary-900: #0a0a0a;
+      
+      --neutral-50: #ffffff;
+      --neutral-100: #fafafa;
+      --neutral-200: #f5f5f5;
+      --neutral-300: #e5e5e5;
+      --neutral-400: #d4d4d4;
+      --neutral-500: #a3a3a3;
+      --neutral-600: #737373;
+      --neutral-700: #525252;
+      --neutral-800: #404040;
+      --neutral-900: #262626;
+      
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+    
+    body.light-mode {
+      background: #f5f5f5;
+      color: #262626;
+    }
+    
+    body.light-mode .header {
+      background: #ffffff;
+      border-bottom-color: #e5e5e5;
+    }
+    
+    body.light-mode .sidebar {
+      background: #ffffff;
+      border-right-color: #e5e5e5;
+    }
+    
+    body.light-mode .stat-card,
+    body.light-mode .section-card,
+    body.light-mode .chart-card {
+      background: #ffffff;
+      border-color: #e5e5e5;
+    }
+    
+    body.light-mode .stat-value {
+      color: #171717;
+    }
+    
+    body.light-mode .stat-title {
+      color: #737373;
+    }
+    
+    body.light-mode .nav-item {
+      color: #737373;
+    }
+    
+    body.light-mode .nav-item:hover {
+      background: #f5f5f5;
+      color: #262626;
+      border-color: #d4d4d4;
+    }
+    
+    body.light-mode .nav-item.active {
+      background: #f5f5f5;
+      color: #171717;
+      border-color: #a3a3a3;
+    }
+    
+    body.light-mode .form-control {
+      background: #fafafa;
+      border-color: #e5e5e5;
+      color: #171717;
+    }
+    
+    body.light-mode .form-control:focus {
+      background: #ffffff;
+      border-color: #a3a3a3;
+    }
+    
     /* Reset & Base */
     * {
       margin: 0;
@@ -128,6 +223,7 @@
       background: #000;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      transition: background-color var(--transition-base), color var(--transition-base);
     }
     
     /* App Layout */
@@ -147,6 +243,7 @@
       color: white;
       box-shadow: var(--shadow-lg);
       border-bottom: 1px solid #1a1a1a;
+      transition: background-color var(--transition-base), border-color var(--transition-base);
     }
     
     .header-content {
@@ -192,6 +289,39 @@
       color: #aaa;
     }
     
+    .version-badge {
+      background: linear-gradient(90deg, #4a4a4a, #2a2a2a);
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      color: white;
+      border: 1px solid #5a5a5a;
+    }
+    
+    .alert-badge {
+      position: relative;
+      display: inline-flex;
+    }
+    
+    .alert-badge .badge-count {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: var(--error-500);
+      color: white;
+      font-size: 10px;
+      font-weight: 600;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      border: 2px solid #0a0a0a;
+    }
+    
     /* Mobile Menu Button */
     .menu-toggle {
       display: none;
@@ -219,6 +349,7 @@
       width: 100%;
       position: relative;
       background: #000;
+      transition: background-color var(--transition-base);
     }
     
     /* Sidebar */
@@ -230,7 +361,7 @@
       position: sticky;
       top: var(--header-height);
       overflow-y: auto;
-      transition: transform var(--transition-base);
+      transition: transform var(--transition-base), background-color var(--transition-base), border-color var(--transition-base);
       z-index: 30;
     }
     
@@ -301,6 +432,14 @@
       border-radius: 0 var(--radius-full) var(--radius-full) 0;
     }
     
+    .nav-item[data-queues] {
+      color: var(--purple-500);
+    }
+    
+    .nav-item[data-queues] i {
+      color: var(--purple-500);
+    }
+    
     /* Main Content */
     .main-content {
       flex: 1;
@@ -308,6 +447,7 @@
       overflow-y: auto;
       min-width: 0;
       background: #000;
+      transition: background-color var(--transition-base);
     }
     
     /* Tab Content */
@@ -621,6 +761,10 @@
       background: linear-gradient(90deg, #c62828, #ef5350);
     }
     
+    .btn-warning {
+      background: linear-gradient(90deg, #b45309, #f59e0b);
+    }
+    
     .btn-sm {
       padding: var(--spacing-sm) var(--spacing-md);
       font-size: var(--font-size-sm);
@@ -706,6 +850,12 @@
       background: rgba(59, 130, 246, 0.1);
       color: #9ac7ff;
       border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+    
+    .badge-purple {
+      background: rgba(139, 92, 246, 0.1);
+      color: #a78bfa;
+      border: 1px solid rgba(139, 92, 246, 0.2);
     }
     
     /* Status Indicators */
@@ -796,6 +946,7 @@
     .type-error { background: #d32f2f; color: white; }
     .type-404 { background: #757575; color: white; }
     .type-long-link-decode { background: #6d4c41; color: white; }
+    .type-signature { background: #4a4a4a; color: white; }
     
     /* Modal */
     .modal {
@@ -936,6 +1087,69 @@
       color: #aaa;
     }
     
+    .alert-close {
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      font-size: var(--font-size-md);
+      padding: var(--spacing-xs);
+    }
+    
+    .alert-close:hover {
+      color: #ccc;
+    }
+    
+    /* MFA Prompt */
+    .mfa-prompt {
+      position: fixed;
+      bottom: var(--spacing-lg);
+      right: var(--spacing-lg);
+      background: #0a0a0a;
+      border-left: 4px solid var(--warning-500);
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-lg);
+      box-shadow: var(--shadow-xl);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-lg);
+      z-index: 1000;
+      max-width: 400px;
+      border: 1px solid #1a1a1a;
+      animation: slideInUp var(--transition-base);
+    }
+    
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .mfa-prompt i {
+      font-size: 2rem;
+      color: var(--warning-500);
+    }
+    
+    .mfa-prompt-content {
+      flex: 1;
+    }
+    
+    .mfa-prompt-content strong {
+      display: block;
+      margin-bottom: var(--spacing-xs);
+      color: #ccc;
+    }
+    
+    .mfa-prompt-content p {
+      color: #aaa;
+      font-size: var(--font-size-sm);
+    }
+    
     /* Toggle Switch */
     .toggle {
       position: relative;
@@ -1008,6 +1222,47 @@
       transition: width 0.3s ease;
     }
     
+    /* Tab Navigation */
+    .tabs {
+      display: flex;
+      gap: var(--spacing-sm);
+      margin-bottom: var(--spacing-lg);
+      border-bottom: 1px solid #1a1a1a;
+      padding-bottom: var(--spacing-sm);
+    }
+    
+    .tab {
+      padding: var(--spacing-sm) var(--spacing-lg);
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+      transition: all var(--transition-fast);
+      font-weight: 500;
+    }
+    
+    .tab:hover {
+      color: #aaa;
+    }
+    
+    .tab.active {
+      color: #e0e0e0;
+      border-bottom: 2px solid #8a8a8a;
+    }
+    
+    /* Key Card */
+    .key-card {
+      background: #1a1a1a;
+      border-radius: var(--radius-lg);
+      padding: var(--spacing-md);
+      border-left: 4px solid var(--purple-500);
+    }
+    
+    .key-card.current {
+      border-left-color: var(--success-500);
+    }
+    
     /* Responsive */
     @media (max-width: 1024px) {
       .charts-grid {
@@ -1073,6 +1328,12 @@
       .header-actions .uptime span:not(#uptimeValue) {
         display: none;
       }
+      
+      .mfa-prompt {
+        left: var(--spacing-md);
+        right: var(--spacing-md);
+        max-width: none;
+      }
     }
     
     @media (max-width: 480px) {
@@ -1093,6 +1354,10 @@
       }
       
       .btn-group {
+        flex-direction: column;
+      }
+      
+      .tabs {
         flex-direction: column;
       }
     }
@@ -1117,7 +1382,8 @@
       .sidebar,
       .btn,
       .modal,
-      .alert {
+      .alert,
+      .mfa-prompt {
         display: none !important;
       }
       
@@ -1174,6 +1440,7 @@
     .text-warning { color: var(--warning-500); }
     .text-error { color: var(--error-500); }
     .text-info { color: var(--info-500); }
+    .text-purple { color: var(--purple-500); }
     
     .flex { display: flex; }
     .flex-col { flex-direction: column; }
@@ -1203,13 +1470,19 @@
       <div class="header-content">
         <div class="logo">
           <i class="fas fa-shield-halved"></i>
-          <span>Redirector Pro v4.0</span>
+          <span>Redirector Pro</span>
+          <span class="version-badge">v4.1.0</span>
         </div>
         
         <div class="header-actions">
           <div class="uptime">
             <i class="fas fa-clock"></i>
             <span id="uptimeValue">0h 0m</span>
+          </div>
+          
+          <div class="alert-badge" id="alertBadgeContainer" style="display: none;">
+            <i class="fas fa-bell"></i>
+            <span class="badge-count" id="alertBadge">0</span>
           </div>
           
           <button class="btn btn-sm" id="logoutBtn">
@@ -1251,6 +1524,18 @@
           <div class="nav-item" data-tab="security">
             <i class="fas fa-shield-alt"></i>
             <span>Security</span>
+          </div>
+          <div class="nav-item" data-tab="encryption-keys">
+            <i class="fas fa-key"></i>
+            <span>Encryption Keys</span>
+          </div>
+          <div class="nav-item" data-tab="audit-log">
+            <i class="fas fa-clipboard-list"></i>
+            <span>Audit Log</span>
+          </div>
+          <div class="nav-item" data-tab="backup">
+            <i class="fas fa-database"></i>
+            <span>Backup</span>
           </div>
           <div class="nav-item" data-tab="settings">
             <i class="fas fa-cog"></i>
@@ -1326,6 +1611,8 @@
                   <button class="btn btn-sm btn-secondary time-range-btn active" data-range="5m">5m</button>
                   <button class="btn btn-sm btn-secondary time-range-btn" data-range="15m">15m</button>
                   <button class="btn btn-sm btn-secondary time-range-btn" data-range="1h">1h</button>
+                  <button class="btn btn-sm btn-secondary time-range-btn" data-range="6h">6h</button>
+                  <button class="btn btn-sm btn-secondary time-range-btn" data-range="24h">24h</button>
                 </div>
               </div>
               <div class="chart-container">
@@ -1354,7 +1641,7 @@
               </div>
               <div class="stat-value" id="avgResponseTime">0ms</div>
               <div class="stat-trend">
-                <span>P95: <span id="p95Time">0ms</span></span>
+                <span>P95: <span id="p95Time">0ms</span> | P99: <span id="p99Time">0ms</span></span>
               </div>
             </div>
             
@@ -1376,7 +1663,7 @@
               </div>
               <div class="stat-value" id="encodingStats">0</div>
               <div class="stat-trend">
-                <span>Avg layers: <span id="avgLayers">0</span></span>
+                <span>Avg layers: <span id="avgLayers">0</span> | Complexity: <span id="avgComplexity">0</span></span>
               </div>
             </div>
             
@@ -1392,6 +1679,52 @@
             </div>
           </div>
           
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">Signature Validations</span>
+                <span class="stat-icon"><i class="fas fa-signature"></i></span>
+              </div>
+              <div class="stat-value" id="signaturesValid">0</div>
+              <div class="stat-trend">
+                <span>Invalid: <span id="signaturesInvalid">0</span></span>
+              </div>
+            </div>
+            
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">Active Sessions</span>
+                <span class="stat-icon"><i class="fas fa-users"></i></span>
+              </div>
+              <div class="stat-value" id="activeSessions">0</div>
+              <div class="stat-trend">
+                <span>Current users</span>
+              </div>
+            </div>
+            
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">Memory Usage</span>
+                <span class="stat-icon"><i class="fas fa-memory"></i></span>
+              </div>
+              <div class="stat-value" id="memoryUsage">0 MB</div>
+              <div class="stat-trend">
+                <span>CPU: <span id="cpuUsage">0%</span></span>
+              </div>
+            </div>
+            
+            <div class="stat-card">
+              <div class="stat-header">
+                <span class="stat-title">System Uptime</span>
+                <span class="stat-icon"><i class="fas fa-clock"></i></span>
+              </div>
+              <div class="stat-value" id="systemUptime">0h 0m</div>
+              <div class="stat-trend">
+                <span>Running</span>
+              </div>
+            </div>
+          </div>
+          
           <div class="section-card">
             <div class="section-header">
               <h3 class="section-title">
@@ -1402,6 +1735,15 @@
             </div>
             <div class="stats-grid" id="countryStats">
               <div class="text-center p-4">Loading...</div>
+            </div>
+          </div>
+          
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="chart-title">Response Time Distribution</h3>
+            </div>
+            <div class="chart-container" style="height: 200px;">
+              <canvas id="performanceChart"></canvas>
             </div>
           </div>
         </div>
@@ -1456,6 +1798,7 @@
                     <option value="standard">Standard (balanced)</option>
                     <option value="aggressive">Aggressive (very long)</option>
                     <option value="stealth">Stealth (max security)</option>
+                    <option value="maximum">Maximum (extreme)</option>
                     <option value="custom">Custom</option>
                   </select>
                   
@@ -1470,16 +1813,22 @@
                         <input type="number" class="form-control" id="longLinkParams" min="5" max="30" value="{{longLinkParams}}">
                       </div>
                     </div>
-                    <div>
-                      <label class="form-label">Encoding Layers (2-8)</label>
-                      <input type="number" class="form-control" id="linkEncodingLayers" min="2" max="8" value="{{linkEncodingLayers}}">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                      <div>
+                        <label class="form-label">Encoding Layers (2-8)</label>
+                        <input type="number" class="form-control" id="linkEncodingLayers" min="2" max="8" value="{{linkEncodingLayers}}">
+                      </div>
+                      <div>
+                        <label class="form-label">Iterations (1-5)</label>
+                        <input type="number" class="form-control" id="maxEncodingIterations" min="1" max="5" value="{{maxEncodingIterations}}">
+                      </div>
                     </div>
                     <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
                       <label style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="enableCompression" checked> Enable Compression
+                        <input type="checkbox" id="enableCompression" {{enableCompression}}> Enable Compression
                       </label>
                       <label style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="enableEncryption"> Enable Encryption
+                        <input type="checkbox" id="enableEncryption" {{enableEncryption}}> Enable Encryption
                       </label>
                     </div>
                   </div>
@@ -1544,6 +1893,7 @@
                   Link Generated Successfully
                 </h4>
                 <span class="badge badge-info" id="generatedMode">Short Link</span>
+                <span class="badge badge-purple" id="apiVersion">v1</span>
               </div>
               
               <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
@@ -1650,12 +2000,13 @@
                     <th>Expires</th>
                     <th>Clicks</th>
                     <th>Status</th>
+                    <th>API</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="linksTableBody">
                   <tr>
-                    <td colspan="8" style="text-align: center; padding: 2rem;">
+                    <td colspan="9" style="text-align: center; padding: 2rem;">
                       <div class="spinner" style="margin: 0 auto;"></div>
                       <div style="margin-top: 1rem;">Loading links...</div>
                     </td>
@@ -1806,6 +2157,7 @@
                   <option value="generate">Generates</option>
                   <option value="bot">Bot Blocks</option>
                   <option value="error">Errors</option>
+                  <option value="signature">Signatures</option>
                 </select>
               </div>
             </div>
@@ -1825,122 +2177,178 @@
         
         <!-- Security Tab -->
         <div id="security" class="tab-content">
-          <div class="grid-2" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-            <!-- Login Attempts -->
-            <div class="section-card">
-              <h3 class="section-title" style="margin-bottom: 1.5rem;">
-                <i class="fas fa-shield-alt"></i>
-                Security Monitoring
-              </h3>
-              
-              <div style="margin-bottom: 2rem;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-                  <span>Failed Login Attempts</span>
-                  <span class="badge badge-warning" id="totalAttempts">0</span>
+          <div class="tabs">
+            <button class="tab active" data-security-tab="overview">Overview</button>
+            <button class="tab" data-security-tab="blocked">Blocked IPs</button>
+            <button class="tab" data-security-tab="sessions">Sessions</button>
+            <button class="tab" data-security-tab="rate-limits">Rate Limits</button>
+          </div>
+          
+          <div id="security-overview" class="security-tab-content" style="display: block;">
+            <div class="grid-2" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+              <!-- Login Attempts -->
+              <div class="section-card">
+                <h3 class="section-title" style="margin-bottom: 1.5rem;">
+                  <i class="fas fa-shield-alt"></i>
+                  Login Attempts
+                </h3>
+                
+                <div style="margin-bottom: 2rem;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                    <span>Recent Failed Attempts</span>
+                    <span class="badge badge-warning" id="totalAttempts">0</span>
+                  </div>
+                  <div class="table-container" style="max-height: 200px;">
+                    <table class="table" style="min-width: auto;">
+                      <thead>
+                        <tr>
+                          <th>IP</th>
+                          <th>Attempts</th>
+                          <th>Last Attempt</th>
+                        </tr>
+                      </thead>
+                      <tbody id="loginAttemptsTable">
+                        <tr><td colspan="3">No recent attempts</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div class="table-container" style="max-height: 200px;">
-                  <table class="table" style="min-width: auto;">
-                    <thead>
-                      <tr>
-                        <th>IP</th>
-                        <th>Attempts</th>
-                        <th>Last Attempt</th>
-                      </tr>
-                    </thead>
-                    <tbody id="loginAttemptsTable">
-                      <tr><td colspan="3">No recent attempts</td></tr>
-                    </tbody>
-                  </table>
+                
+                <div class="btn-group" style="margin-top: 1rem;">
+                  <button class="btn btn-secondary" id="refreshSecurityBtn">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                  </button>
+                  <button class="btn btn-secondary" id="clearAttemptsBtn">
+                    <i class="fas fa-trash"></i> Clear Attempts
+                  </button>
                 </div>
               </div>
               
-              <div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
-                  <span>Blocked IPs</span>
+              <!-- Rate Limits -->
+              <div class="section-card">
+                <h3 class="section-title" style="margin-bottom: 1.5rem;">
+                  <i class="fas fa-gauge"></i>
+                  Rate Limits
+                </h3>
+                
+                <div style="margin-bottom: 1rem;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>General</span>
+                    <span><span id="currentRate">0</span>/<span id="maxRate">{{RATE_LIMIT_MAX}}</span></span>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar" id="generalRateBar" style="width: 0%"></div>
+                  </div>
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>Encoding</span>
+                    <span><span id="currentEncodingRate">0</span>/<span id="maxEncodingRate">{{ENCODING_RATE_LIMIT}}</span></span>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar" id="encodingRateBar" style="width: 0%"></div>
+                  </div>
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>Bot Detection Threshold</span>
+                    <span id="botThreshold">65</span>
+                  </div>
+                  <div class="progress">
+                    <div class="progress-bar" id="botThresholdBar" style="width: 65%"></div>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">Adjust Bot Threshold</label>
+                  <input type="range" class="form-control" id="botThresholdSlider" min="0" max="100" value="65">
+                  <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+                    <span class="text-muted">Less Aggressive</span>
+                    <span class="text-muted">More Aggressive</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Bot Detection Stats -->
+              <div class="section-card">
+                <h3 class="section-title" style="margin-bottom: 1.5rem;">
+                  <i class="fas fa-robot"></i>
+                  Bot Detection
+                </h3>
+                
+                <div id="botReasons">
+                  <div class="text-center p-4">No data</div>
+                </div>
+              </div>
+              
+              <!-- Signature Stats -->
+              <div class="section-card">
+                <h3 class="section-title" style="margin-bottom: 1.5rem;">
+                  <i class="fas fa-signature"></i>
+                  Request Signatures
+                </h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div class="key-card">
+                    <div class="text-muted">Valid</div>
+                    <div class="stat-value" style="font-size: 1.5rem;" id="signaturesValid">0</div>
+                  </div>
+                  <div class="key-card">
+                    <div class="text-muted">Invalid</div>
+                    <div class="stat-value" style="font-size: 1.5rem;" id="signaturesInvalid">0</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="security-blocked" class="security-tab-content" style="display: none;">
+            <div class="section-card">
+              <div class="section-header">
+                <h3 class="section-title">
+                  <i class="fas fa-ban"></i>
+                  Blocked IPs
                   <span class="badge badge-error" id="blockedCount">0</span>
-                </div>
-                <div class="table-container" style="max-height: 200px;">
-                  <table class="table" style="min-width: auto;">
-                    <thead>
-                      <tr>
-                        <th>IP</th>
-                        <th>Reason</th>
-                        <th>Expires</th>
-                      </tr>
-                    </thead>
-                    <tbody id="blockedIPsTable">
-                      <tr><td colspan="3">No blocked IPs</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              
-              <div class="btn-group" style="margin-top: 1rem;">
-                <button class="btn btn-secondary" id="refreshSecurityBtn">
-                  <i class="fas fa-sync-alt"></i> Refresh
-                </button>
-                <button class="btn btn-secondary" id="clearAttemptsBtn">
-                  <i class="fas fa-trash"></i> Clear Attempts
+                </h3>
+                <button class="btn btn-secondary" id="unblockIPBtn">
+                  <i class="fas fa-ban"></i> Unblock IP
                 </button>
               </div>
-            </div>
-            
-            <!-- Rate Limits -->
-            <div class="section-card">
-              <h3 class="section-title" style="margin-bottom: 1.5rem;">
-                <i class="fas fa-gauge"></i>
-                Rate Limits
-              </h3>
-              
-              <div style="margin-bottom: 1rem;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                  <span>General</span>
-                  <span><span id="currentRate">0</span>/<span id="maxRate">{{RATE_LIMIT_MAX}}</span></span>
-                </div>
-                <div class="progress">
-                  <div class="progress-bar" id="generalRateBar" style="width: 0%"></div>
-                </div>
-              </div>
-              
-              <div style="margin-bottom: 1rem;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                  <span>Encoding</span>
-                  <span><span id="currentEncodingRate">0</span>/<span id="maxEncodingRate">{{ENCODING_RATE_LIMIT}}</span></span>
-                </div>
-                <div class="progress">
-                  <div class="progress-bar" id="encodingRateBar" style="width: 0%"></div>
-                </div>
-              </div>
-              
-              <div style="margin-bottom: 1rem;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                  <span>Bot Detection Threshold</span>
-                  <span id="botThreshold">65</span>
-                </div>
-                <div class="progress">
-                  <div class="progress-bar" id="botThresholdBar" style="width: 65%"></div>
-                </div>
-              </div>
-              
-              <div class="form-group">
-                <label class="form-label">Adjust Bot Threshold</label>
-                <input type="range" class="form-control" id="botThresholdSlider" min="0" max="100" value="65">
-                <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
-                  <span class="text-muted">Less Aggressive</span>
-                  <span class="text-muted">More Aggressive</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Active Sessions -->
-            <div class="section-card">
-              <h3 class="section-title" style="margin-bottom: 1.5rem;">
-                <i class="fas fa-users"></i>
-                Active Sessions
-              </h3>
               
               <div class="table-container">
-                <table class="table" style="min-width: auto;">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>IP</th>
+                      <th>Reason</th>
+                      <th>Expires</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="blockedIPsTable">
+                    <tr><td colspan="4">No blocked IPs</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <div id="security-sessions" class="security-tab-content" style="display: none;">
+            <div class="section-card">
+              <div class="section-header">
+                <h3 class="section-title">
+                  <i class="fas fa-users"></i>
+                  Active Sessions
+                </h3>
+                <button class="btn btn-secondary" id="revokeSessionBtn">
+                  <i class="fas fa-ban"></i> Revoke Session
+                </button>
+              </div>
+              
+              <div class="table-container">
+                <table class="table">
                   <thead>
                     <tr>
                       <th>User</th>
@@ -1956,12 +2364,188 @@
               </div>
             </div>
           </div>
+          
+          <div id="security-rate-limits" class="security-tab-content" style="display: none;">
+            <div class="section-card">
+              <h3 class="section-title">Rate Limit Configuration</h3>
+              <p class="text-muted">Configured in environment variables</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Encryption Keys Tab -->
+        <div id="encryption-keys" class="tab-content">
+          <div class="section-card">
+            <div class="section-header">
+              <h3 class="section-title">
+                <i class="fas fa-key"></i>
+                Encryption Keys
+              </h3>
+              <div class="btn-group">
+                <button class="btn btn-warning" id="rotateKeysBtn">
+                  <i class="fas fa-sync-alt"></i> Rotate Keys
+                </button>
+                <button class="btn btn-secondary" id="backupKeysBtn">
+                  <i class="fas fa-download"></i> Backup Keys
+                </button>
+              </div>
+            </div>
+            
+            <div class="key-card current" style="margin-bottom: 1.5rem;">
+              <div class="flex justify-between items-center">
+                <div>
+                  <span class="badge badge-success">Current Key</span>
+                  <code id="currentKeyId" style="margin-left: 0.5rem;">Loading...</code>
+                </div>
+                <span class="text-muted" id="currentKeyExpiry"></span>
+              </div>
+            </div>
+            
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Key ID</th>
+                    <th>Version</th>
+                    <th>Created</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="keysTableBody">
+                  <tr><td colspan="6">Loading keys...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Audit Log Tab -->
+        <div id="audit-log" class="tab-content">
+          <div class="section-card">
+            <div class="section-header">
+              <h3 class="section-title">
+                <i class="fas fa-clipboard-list"></i>
+                Audit Log
+              </h3>
+              <div class="btn-group">
+                <select class="form-control" id="auditFilter" style="width: 150px;">
+                  <option value="all">All Actions</option>
+                  <option value="CREATE_LINK">Create Link</option>
+                  <option value="DELETE_LINK">Delete Link</option>
+                  <option value="UPDATE_LINK">Update Link</option>
+                  <option value="LOGIN">Login</option>
+                  <option value="LOGOUT">Logout</option>
+                  <option value="KEY_ROTATE">Key Rotate</option>
+                </select>
+                <select class="form-control" id="auditDateRange" style="width: 150px;">
+                  <option value="1h">Last Hour</option>
+                  <option value="24h" selected>Last 24 Hours</option>
+                  <option value="7d">Last 7 Days</option>
+                  <option value="30d">Last 30 Days</option>
+                </select>
+                <button class="btn btn-secondary" id="refreshAuditBtn">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+                <button class="btn btn-secondary" id="exportAuditBtn">
+                  <i class="fas fa-download"></i> Export
+                </button>
+              </div>
+            </div>
+            
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>User</th>
+                    <th>IP</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="auditLogsBody">
+                  <tr><td colspan="5">Loading audit logs...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Backup Tab -->
+        <div id="backup" class="tab-content">
+          <div class="section-card">
+            <div class="section-header">
+              <h3 class="section-title">
+                <i class="fas fa-database"></i>
+                Backup Management
+              </h3>
+              <div class="btn-group">
+                <button class="btn btn-success" id="runBackupBtn">
+                  <i class="fas fa-play"></i> Run Backup
+                </button>
+                <button class="btn btn-secondary" id="restoreBackupBtn">
+                  <i class="fas fa-undo"></i> Restore
+                </button>
+                <button class="btn btn-secondary" id="configureBackupBtn">
+                  <i class="fas fa-cog"></i> Configure
+                </button>
+              </div>
+            </div>
+            
+            <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+              <div class="stat-card">
+                <div class="stat-header">
+                  <span class="stat-title">Last Backup</span>
+                </div>
+                <div class="stat-value" style="font-size: 1.25rem;" id="lastBackup">Never</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-header">
+                  <span class="stat-title">Total Backups</span>
+                </div>
+                <div class="stat-value" style="font-size: 1.25rem;" id="backupCount">0</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-header">
+                  <span class="stat-title">Total Size</span>
+                </div>
+                <div class="stat-value" style="font-size: 1.25rem;" id="backupSize">0 B</div>
+              </div>
+            </div>
+            
+            <div class="table-container" style="margin-top: 2rem;">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Backup ID</th>
+                    <th>Date</th>
+                    <th>Size</th>
+                    <th>Type</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="backupsTableBody">
+                  <tr><td colspan="5">No backups found</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
         
         <!-- Settings Tab -->
         <div id="settings" class="tab-content">
-          <div class="grid-2" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
-            <!-- Link Mode Settings -->
+          <div class="tabs">
+            <button class="tab active" data-settings-tab="link">Link Settings</button>
+            <button class="tab" data-settings-tab="system">System</button>
+            <button class="tab" data-settings-tab="security">Security</button>
+            <button class="tab" data-settings-tab="notifications">Notifications</button>
+            <button class="tab" data-settings-tab="cache">Cache</button>
+          </div>
+          
+          <!-- Link Settings -->
+          <div id="settings-link" class="settings-tab-content" style="display: block;">
             <div class="section-card">
               <h3 class="section-title" style="margin-bottom: 1.5rem;">
                 <i class="fas fa-link"></i>
@@ -1998,8 +2582,8 @@
               </div>
               
               <div class="form-group">
-                <label class="form-label">Encoding Layers (2-8)</label>
-                <input type="number" class="form-control" id="settingLinkEncodingLayers" min="2" max="8" value="{{linkEncodingLayers}}">
+                <label class="form-label">Encoding Layers (2-12)</label>
+                <input type="number" class="form-control" id="settingLinkEncodingLayers" min="2" max="12" value="{{linkEncodingLayers}}">
                 <small class="text-muted">More layers = longer, more secure URLs</small>
               </div>
               
@@ -2007,6 +2591,12 @@
                 <label class="form-label">Encoding Iterations (1-5)</label>
                 <input type="number" class="form-control" id="settingMaxEncodingIterations" min="1" max="5" value="{{maxEncodingIterations}}">
                 <small class="text-muted">More iterations = more complex encoding</small>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Encoding Complexity Threshold (10-100)</label>
+                <input type="number" class="form-control" id="settingEncodingComplexityThreshold" min="10" max="100" value="50">
+                <small class="text-muted">Minimum complexity for long links</small>
               </div>
               
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
@@ -2017,7 +2607,7 @@
                 </label>
               </div>
               
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+              <div style="display: flex; align-items: center; justify-content:space-between; margin-bottom: 1rem;">
                 <span>Enable Encryption</span>
                 <label class="toggle">
                   <input type="checkbox" id="settingEnableEncryption">
@@ -2031,76 +2621,10 @@
                 </button>
               </div>
             </div>
-            
-            <!-- Cache Management -->
-            <div class="section-card">
-              <h3 class="section-title" style="margin-bottom: 1.5rem;">
-                <i class="fas fa-database"></i>
-                Cache Management
-              </h3>
-              
-              <div class="btn-group" style="margin-bottom: 2rem; flex-wrap: wrap;">
-                <button class="btn btn-danger" id="clearAllCache">
-                  <i class="fas fa-trash-alt"></i> Clear All
-                </button>
-                <button class="btn btn-secondary" id="clearGeoCache">
-                  <i class="fas fa-globe"></i> Clear Geo
-                </button>
-                <button class="btn btn-secondary" id="clearQRCache">
-                  <i class="fas fa-qrcode"></i> Clear QR
-                </button>
-                <button class="btn btn-secondary" id="clearEncodingCache">
-                  <i class="fas fa-code"></i> Clear Encoding
-                </button>
-              </div>
-              
-              <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
-                <div class="stat-card" style="padding: 0.75rem;">
-                  <div class="stat-header" style="margin-bottom: 0.25rem;">
-                    <span class="stat-title">Links</span>
-                  </div>
-                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheLinks">0</div>
-                </div>
-                <div class="stat-card" style="padding: 0.75rem;">
-                  <div class="stat-header" style="margin-bottom: 0.25rem;">
-                    <span class="stat-title">Geo</span>
-                  </div>
-                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheGeo">0</div>
-                </div>
-                <div class="stat-card" style="padding: 0.75rem;">
-                  <div class="stat-header" style="margin-bottom: 0.25rem;">
-                    <span class="stat-title">QR</span>
-                  </div>
-                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheQR">0</div>
-                </div>
-                <div class="stat-card" style="padding: 0.75rem;">
-                  <div class="stat-header" style="margin-bottom: 0.25rem;">
-                    <span class="stat-title">Encoding</span>
-                  </div>
-                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheEncoding">0</div>
-                </div>
-              </div>
-              
-              <div style="margin-top: 1rem;">
-                <h5 class="section-title" style="margin-bottom: 0.5rem;">Cache Stats</h5>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                  <div>
-                    <span class="text-muted">Hits:</span>
-                    <span id="cacheHits">0</span>
-                  </div>
-                  <div>
-                    <span class="text-muted">Misses:</span>
-                    <span id="cacheMisses">0</span>
-                  </div>
-                  <div>
-                    <span class="text-muted">Hit Rate:</span>
-                    <span id="detailedHitRate">0%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- System Settings -->
+          </div>
+          
+          <!-- System Settings -->
+          <div id="settings-system" class="settings-tab-content" style="display: none;">
             <div class="section-card">
               <h3 class="section-title" style="margin-bottom: 1.5rem;">
                 <i class="fas fa-sliders-h"></i>
@@ -2153,68 +2677,221 @@
                 </select>
               </div>
               
+              <div class="form-group">
+                <label class="form-label">Log Format</label>
+                <select class="form-control" id="settingLogFormat">
+                  <option value="json">JSON</option>
+                  <option value="simple">Simple</option>
+                  <option value="combined">Combined</option>
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Log Retention (days)</label>
+                <input type="number" class="form-control" id="settingLogRetention" min="1" max="365" value="30">
+              </div>
+              
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <span>Auto Refresh</span>
+                <label class="toggle">
+                  <input type="checkbox" id="autoRefresh" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Refresh Interval (seconds)</label>
+                <select class="form-control" id="refreshInterval">
+                  <option value="2">2 seconds</option>
+                  <option value="5" selected>5 seconds</option>
+                  <option value="10">10 seconds</option>
+                  <option value="30">30 seconds</option>
+                </select>
+              </div>
+              
               <button class="btn" style="width: 100%;" id="saveSystemSettings">
                 <i class="fas fa-save"></i> Save System Settings
               </button>
             </div>
-            
-            <!-- System Information -->
+          </div>
+          
+          <!-- Security Settings -->
+          <div id="settings-security" class="settings-tab-content" style="display: none;">
             <div class="section-card">
               <h3 class="section-title" style="margin-bottom: 1.5rem;">
-                <i class="fas fa-info-circle"></i>
-                System Information
+                <i class="fas fa-shield-alt"></i>
+                Security Settings
               </h3>
               
-              <div style="display: grid; gap: 1rem;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                  <div>
-                    <span class="status-dot connected" id="socketStatus"></span>
-                    <span>Socket</span>
+              <div class="form-group">
+                <label class="form-label">BCrypt Rounds (10-14)</label>
+                <input type="number" class="form-control" id="settingBCryptRounds" min="10" max="14" value="12">
+                <small class="text-muted">Higher = more secure but slower</small>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Session TTL (seconds)</label>
+                <input type="number" class="form-control" id="settingSessionTTL" min="3600" max="604800" value="86400">
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Max Login Attempts</label>
+                <input type="number" class="form-control" id="settingLoginAttempts" min="3" max="20" value="10">
+              </div>
+              
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <span>CSRF Protection</span>
+                <label class="toggle">
+                  <input type="checkbox" id="settingCSRFEnabled" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <span>CSP Enabled</span>
+                <label class="toggle">
+                  <input type="checkbox" id="settingCSPEnabled" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <span>HSTS Enabled</span>
+                <label class="toggle">
+                  <input type="checkbox" id="settingHSTSEnabled" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <span>MFA Required</span>
+                <label class="toggle">
+                  <input type="checkbox" id="settingMFARequired">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <button class="btn" style="width: 100%;" id="saveSecuritySettings">
+                <i class="fas fa-save"></i> Save Security Settings
+              </button>
+            </div>
+          </div>
+          
+          <!-- Notification Settings -->
+          <div id="settings-notifications" class="settings-tab-content" style="display: none;">
+            <div class="section-card">
+              <h3 class="section-title" style="margin-bottom: 1.5rem;">
+                <i class="fas fa-bell"></i>
+                Notification Settings
+              </h3>
+              
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                <span>Notification Sound</span>
+                <label class="toggle">
+                  <input type="checkbox" id="settingNotificationSound">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Alert Email</label>
+                <input type="email" class="form-control" id="settingAlertEmail" placeholder="admin@example.com">
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Slack Webhook URL</label>
+                <input type="url" class="form-control" id="settingSlackWebhook" placeholder="https://hooks.slack.com/services/...">
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">Discord Webhook URL</label>
+                <input type="url" class="form-control" id="settingDiscordWebhook" placeholder="https://discord.com/api/webhooks/...">
+              </div>
+              
+              <button class="btn" style="width: 100%;" id="saveNotificationSettings">
+                <i class="fas fa-save"></i> Save Notification Settings
+              </button>
+            </div>
+          </div>
+          
+          <!-- Cache Settings -->
+          <div id="settings-cache" class="settings-tab-content" style="display: none;">
+            <div class="section-card">
+              <h3 class="section-title" style="margin-bottom: 1.5rem;">
+                <i class="fas fa-database"></i>
+                Cache Management
+              </h3>
+              
+              <div class="btn-group" style="margin-bottom: 2rem; flex-wrap: wrap;">
+                <button class="btn btn-danger" id="clearAllCache">
+                  <i class="fas fa-trash-alt"></i> Clear All
+                </button>
+                <button class="btn btn-secondary" id="clearGeoCache">
+                  <i class="fas fa-globe"></i> Clear Geo
+                </button>
+                <button class="btn btn-secondary" id="clearQRCache">
+                  <i class="fas fa-qrcode"></i> Clear QR
+                </button>
+                <button class="btn btn-secondary" id="clearEncodingCache">
+                  <i class="fas fa-code"></i> Clear Encoding
+                </button>
+                <button class="btn btn-secondary" id="clearDeviceCache">
+                  <i class="fas fa-mobile-alt"></i> Clear Device
+                </button>
+              </div>
+              
+              <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr); gap: 0.5rem;">
+                <div class="stat-card" style="padding: 0.75rem;">
+                  <div class="stat-header" style="margin-bottom: 0.25rem;">
+                    <span class="stat-title">Links</span>
                   </div>
-                  <div>
-                    <span class="status-dot" id="dbStatus"></span>
-                    <span>Database</span>
-                  </div>
-                  <div>
-                    <span class="status-dot" id="redisStatus"></span>
-                    <span>Redis</span>
-                  </div>
-                  <div>
-                    <span class="status-dot" id="queueStatus"></span>
-                    <span>Queues</span>
-                  </div>
+                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheLinks">0</div>
                 </div>
-                
-                <div class="border-top pt-3">
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span>Version</span>
-                    <span class="badge badge-info">4.0.0 Enterprise</span>
+                <div class="stat-card" style="padding: 0.75rem;">
+                  <div class="stat-header" style="margin-bottom: 0.25rem;">
+                    <span class="stat-title">Geo</span>
                   </div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span>Node Environment</span>
-                    <span class="badge badge-info" id="nodeEnv">{{NODE_ENV}}</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span>Memory Usage</span>
-                    <span id="memoryUsage">0 MB</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span>CPU Usage</span>
-                    <span id="cpuUsage">0%</span>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <span>Uptime</span>
-                    <span id="systemUptime">0h 0m</span>
-                  </div>
+                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheGeo">0</div>
                 </div>
-                
-                <div class="btn-group" style="margin-top: 1rem;">
-                  <button class="btn btn-secondary" id="reloadConfigBtn">
-                    <i class="fas fa-sync-alt"></i> Reload Config
-                  </button>
-                  <button class="btn btn-secondary" id="viewHealthBtn">
-                    <i class="fas fa-heartbeat"></i> Health Check
-                  </button>
+                <div class="stat-card" style="padding: 0.75rem;">
+                  <div class="stat-header" style="margin-bottom: 0.25rem;">
+                    <span class="stat-title">QR</span>
+                  </div>
+                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheQR">0</div>
+                </div>
+                <div class="stat-card" style="padding: 0.75rem;">
+                  <div class="stat-header" style="margin-bottom: 0.25rem;">
+                    <span class="stat-title">Encoding</span>
+                  </div>
+                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheEncoding">0</div>
+                </div>
+                <div class="stat-card" style="padding: 0.75rem;">
+                  <div class="stat-header" style="margin-bottom: 0.25rem;">
+                    <span class="stat-title">Device</span>
+                  </div>
+                  <div class="stat-value" style="font-size: 1.25rem;" id="cacheDevice">0</div>
+                </div>
+              </div>
+              
+              <div style="margin-top: 1rem;">
+                <h5 class="section-title" style="margin-bottom: 0.5rem;">Cache Stats</h5>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                  <div>
+                    <span class="text-muted">Hits:</span>
+                    <span id="cacheHits">0</span>
+                  </div>
+                  <div>
+                    <span class="text-muted">Misses:</span>
+                    <span id="cacheMisses">0</span>
+                  </div>
+                  <div>
+                    <span class="text-muted">Hit Rate:</span>
+                    <span id="detailedHitRate">0%</span>
+                  </div>
+                  <div>
+                    <span class="text-muted">Nonce Cache:</span>
+                    <span id="cacheNonce">0</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2288,11 +2965,43 @@
     </div>
   </div>
   
+  <!-- Key Details Modal -->
+  <div class="modal" id="keyModal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-key"></i>
+          Key Details
+        </h3>
+        <button class="modal-close" id="keyModalClose">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div id="keyModalContent"></div>
+    </div>
+  </div>
+  
+  <!-- Audit Log Modal -->
+  <div class="modal" id="auditModal">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-clipboard-list"></i>
+          Audit Entry Details
+        </h3>
+        <button class="modal-close" id="auditModalClose">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div id="auditModalContent"></div>
+    </div>
+  </div>
+  
   <!-- Alert Container -->
   <div class="alert" id="alert"></div>
   
   <!-- Main JavaScript -->
-  <script src="/js/main.js"></script>
+  <script src="/js/dashboard.js?v=4.1.0"></script>
   <script nonce="{{NONCE}}">
     // Server-side injected variables
     const METRICS_API_KEY = '{{METRICS_API_KEY}}';
@@ -2310,6 +3019,11 @@
     const NODE_ENV = '{{nodeEnv}}';
     const RATE_LIMIT_MAX = '{{RATE_LIMIT_MAX}}';
     const ENCODING_RATE_LIMIT = '{{ENCODING_RATE_LIMIT}}';
+    const MFA_ENABLED = {{MFA_ENABLED}};
+    const WEBAUTHN_ENABLED = {{WEBAUTHN_ENABLED}};
+    const SESSION_TTL = {{SESSION_TTL}};
+    const AUDIT_LOG_ENABLED = {{AUDIT_LOG_ENABLED}};
+    const BACKUP_ENCRYPTION_ENABLED = {{BACKUP_ENCRYPTION_ENABLED}};
   </script>
 </body>
 </html>
