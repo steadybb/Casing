@@ -7024,6 +7024,7 @@ async function performBackup() {
 }
 
 // Start Server
+// Start Server
 async function startServer() {
   try {
     await ensureDirectories();
@@ -7050,79 +7051,128 @@ async function startServer() {
       performBackup();
     }
     
-    // Get port from environment or use default
-    const port = process.env.PORT || CONFIG.PORT || 10000;
-    const host = CONFIG.HOST || '0.0.0.0';
+    // CRITICAL FIX: Use PORT from environment exactly as Render provides it
+    const port = process.env.PORT;  // Don't provide a default - Render MUST set this
+    const host = '0.0.0.0';  // Always bind to all interfaces
     
-    server.listen(port, host, () => {
-      console.log('\n' + '='.repeat(100));
-      console.log(`  🚀 Redirector Pro v4.1.0 - Enterprise Edition - ULTIMATE`);
-      console.log('='.repeat(100));
-      console.log(`  📡 Host: ${host}:${port}`);
-      console.log(`  🔑 Metrics Key: ${METRICS_API_KEY.substring(0, 8)}...`);
-      console.log(`  ⏱️  Link TTL: ${formatDuration(LINK_TTL_SEC)}`);
-      console.log(`  📊 Max Links: ${MAX_LINKS.toLocaleString()}`);
-      console.log(`  📱 Mobile threshold: 20 | 💻 Desktop threshold: 65`);
-      console.log(`  🔗 Link Mode: ${LINK_LENGTH_MODE} (${ALLOW_LINK_MODE_SWITCH ? 'switchable' : 'fixed'})`);
-      console.log(`  📏 Long Link: ${LONG_LINK_SEGMENTS} seg | ${LONG_LINK_PARAMS} param | ${LINK_ENCODING_LAYERS} layers`);
-      console.log(`  🔐 Encryption: ${ENABLE_ENCRYPTION ? `Enabled (${CONFIG.ENCRYPTION_KEY_ROTATION_DAYS} day rotation)` : 'Disabled'}`);
-      console.log(`  📝 Request Signing: Enabled (${CONFIG.REQUEST_SIGNING_EXPIRY/1000}s expiry)`);
-      console.log(`  🔢 API Versions: ${CONFIG.SUPPORTED_API_VERSIONS.join(', ')} (default: ${CONFIG.DEFAULT_API_VERSION})`);
-      console.log(`  💾 Database: ${dbPool ? 'Connected' : 'Disabled'}`);
-      console.log(`  🔄 Redis: ${redisClient?.status === 'ready' ? 'Connected' : 'Disabled'}`);
-      console.log(`  📨 Queues: ${redirectQueue ? 'Enabled' : 'Disabled'}`);
-      console.log(`  🗄️  Transactions: ${txManager ? 'Enabled' : 'Disabled'}`);
-      console.log(`  🛡️  Circuit Breakers: Enabled`);
-      console.log(`  📈 Prometheus Metrics: ${CONFIG.METRICS_ENABLED ? 'Enabled' : 'Disabled'}`);
-      console.log(`  📚 API Docs: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}/api-docs`);
-      console.log(`  📍 Admin UI: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}/admin`);
-      
-      if (serverAdapter && CONFIG.BULL_BOARD_ENABLED) {
-        console.log(`  📊 Bull Board: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}${CONFIG.BULL_BOARD_PATH}`);
-      }
-      
-      console.log('='.repeat(100) + '\n');
-      
-      logger.info('Server started', {
-        port,
-        host,
-        nodeEnv: NODE_ENV,
-        version: '4.1.0',
-        linkMode: LINK_LENGTH_MODE,
-        encryption: {
-          enabled: ENABLE_ENCRYPTION,
-          keyRotation: keyManager?.rotationInterval,
-          activeKeys: keyManager?.keys.size
-        },
-        signing: true,
-        apiVersions: CONFIG.SUPPORTED_API_VERSIONS,
-        transactions: !!txManager
-      });
-      
-      fs.appendFile(REQUEST_LOG_FILE, JSON.stringify({
-        t: Date.now(),
-        type: 'startup',
-        version: '4.1.0-ultimate',
-        port,
-        host,
-        nodeEnv: NODE_ENV,
-        features: {
-          encryption: ENABLE_ENCRYPTION,
-          signing: true,
-          apiVersions: CONFIG.SUPPORTED_API_VERSIONS
-        }
-      }) + '\n').catch(() => {});
+    // Validate that we have a port
+    if (!port) {
+      console.error('❌ CRITICAL ERROR: PORT environment variable is not set!');
+      console.error('Render should automatically set this. Check your service configuration.');
+      console.error('Environment variables available:', Object.keys(process.env).sort());
+      process.exit(1);
+    }
+    
+    console.log(`\n🔧 Attempting to bind to ${host}:${port}...`);
+    console.log(`📋 Process ID: ${process.pid}`);
+    console.log(`📋 Node version: ${process.version}`);
+    console.log(`📋 Platform: ${process.platform}`);
+    
+    // Create a promise-based listen with better error handling
+    await new Promise((resolve, reject) => {
+      server.listen(port, host)
+        .once('listening', () => {
+          const addr = server.address();
+          console.log('\n' + '='.repeat(100));
+          console.log(`  ✅ SUCCESS! Server is listening on:`);
+          console.log(`  📡 ${host}:${addr.port}`);
+          console.log(`  🔗 http://${host === '0.0.0.0' ? 'localhost' : host}:${addr.port}`);
+          console.log('='.repeat(100) + '\n');
+          
+          // Log all the startup info
+          console.log(`  🚀 Redirector Pro v4.1.0 - Enterprise Edition - ULTIMATE`);
+          console.log('='.repeat(100));
+          console.log(`  📡 Host: ${host}:${addr.port}`);
+          console.log(`  🔑 Metrics Key: ${METRICS_API_KEY.substring(0, 8)}...`);
+          console.log(`  ⏱️  Link TTL: ${formatDuration(LINK_TTL_SEC)}`);
+          console.log(`  📊 Max Links: ${MAX_LINKS.toLocaleString()}`);
+          console.log(`  📱 Mobile threshold: 20 | 💻 Desktop threshold: 65`);
+          console.log(`  🔗 Link Mode: ${LINK_LENGTH_MODE} (${ALLOW_LINK_MODE_SWITCH ? 'switchable' : 'fixed'})`);
+          console.log(`  📏 Long Link: ${LONG_LINK_SEGMENTS} seg | ${LONG_LINK_PARAMS} param | ${LINK_ENCODING_LAYERS} layers`);
+          console.log(`  🔐 Encryption: ${ENABLE_ENCRYPTION ? `Enabled (${CONFIG.ENCRYPTION_KEY_ROTATION_DAYS} day rotation)` : 'Disabled'}`);
+          console.log(`  📝 Request Signing: Enabled (${CONFIG.REQUEST_SIGNING_EXPIRY/1000}s expiry)`);
+          console.log(`  🔢 API Versions: ${CONFIG.SUPPORTED_API_VERSIONS.join(', ')} (default: ${CONFIG.DEFAULT_API_VERSION})`);
+          console.log(`  💾 Database: ${dbPool ? 'Connected' : 'Disabled'}`);
+          console.log(`  🔄 Redis: ${redisClient?.status === 'ready' ? 'Connected' : 'Disabled'}`);
+          console.log(`  📨 Queues: ${redirectQueue ? 'Enabled' : 'Disabled'}`);
+          console.log(`  🗄️  Transactions: ${txManager ? 'Enabled' : 'Disabled'}`);
+          console.log(`  🛡️  Circuit Breakers: Enabled`);
+          console.log(`  📈 Prometheus Metrics: ${CONFIG.METRICS_ENABLED ? 'Enabled' : 'Disabled'}`);
+          console.log(`  📚 API Docs: http://${host === '0.0.0.0' ? 'localhost' : host}:${addr.port}/api-docs`);
+          console.log(`  📍 Admin UI: http://${host === '0.0.0.0' ? 'localhost' : host}:${addr.port}/admin`);
+          
+          if (serverAdapter && CONFIG.BULL_BOARD_ENABLED) {
+            console.log(`  📊 Bull Board: http://${host === '0.0.0.0' ? 'localhost' : host}:${addr.port}${CONFIG.BULL_BOARD_PATH}`);
+          }
+          
+          console.log('='.repeat(100) + '\n');
+          
+          // Log to logger
+          logger.info('Server started successfully', {
+            port: addr.port,
+            host,
+            nodeEnv: NODE_ENV,
+            version: '4.1.0',
+            pid: process.pid
+          });
+          
+          // Write to request log
+          fs.appendFile(REQUEST_LOG_FILE, JSON.stringify({
+            t: Date.now(),
+            type: 'startup',
+            version: '4.1.0-ultimate',
+            port: addr.port,
+            host,
+            nodeEnv: NODE_ENV,
+            pid: process.pid,
+            features: {
+              encryption: ENABLE_ENCRYPTION,
+              signing: true,
+              apiVersions: CONFIG.SUPPORTED_API_VERSIONS
+            }
+          }) + '\n').catch(() => {});
+          
+          resolve();
+        })
+        .once('error', (err) => {
+          console.error('\n❌ CRITICAL ERROR: Failed to bind to port!');
+          console.error(`   Error: ${err.message}`);
+          console.error(`   Code: ${err.code}`);
+          console.error(`   Port: ${port}`);
+          console.error(`   Host: ${host}`);
+          
+          if (err.code === 'EADDRINUSE') {
+            console.error(`\n   Port ${port} is already in use.`);
+            console.error('   Check if another process is using this port:');
+            console.error('   $ lsof -i :' + port);
+          } else if (err.code === 'EACCES') {
+            console.error(`\n   Permission denied for port ${port}.`);
+            console.error('   Ports below 1024 require root privileges.');
+          }
+          
+          reject(err);
+        });
     });
+    
   } catch (err) {
-    console.error('Failed to start server:', err);
+    console.error('\n❌ FATAL ERROR: Server failed to start!');
+    console.error('   Error:', err.message);
+    console.error('   Stack:', err.stack);
+    logger.error('Fatal startup error:', err);
     process.exit(1);
   }
 }
 
-// Start the server
-startServer();
+// Add a small delay before starting to ensure everything is ready
+setTimeout(() => {
+  console.log('🔧 Initializing server startup sequence...');
+  startServer().catch(err => {
+    console.error('Unhandled error in startServer:', err);
+    process.exit(1);
+  });
+}, 1000);
 
-// Server configuration
+// Server configuration (keep these as they are)
 server.keepAliveTimeout = CONFIG.KEEP_ALIVE_TIMEOUT;
 server.headersTimeout = CONFIG.HEADERS_TIMEOUT;
 server.maxHeadersCount = 1000;
