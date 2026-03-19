@@ -1,21 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Secure Access | Redirector Pro Enterprise v4.1.0</title>
+  <title>Secure Access | Redirector Pro Enterprise v4.2.0</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <meta name="theme-color" content="#000000">
-  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="description" content="Secure enterprise login for Redirector Pro">
+  <meta name="description" content="Secure enterprise login for Redirector Pro - FIPS 140-2 compliant">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="format-detection" content="telephone=no">
   
-  <!-- Font Awesome Icons -->
+  <!-- PWA Support -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/icon-152.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/icon-167.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png">
+  
+  <!-- Resource Hints -->
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  
+  <!-- Font Awesome Icons - Preload Critical -->
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" as="style">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <style>
+    /* CSS Variables for Theming */
+    :root {
+      --bg-primary: #000;
+      --bg-secondary: #0a0a0a;
+      --bg-tertiary: #111;
+      --text-primary: #ddd;
+      --text-secondary: #888;
+      --text-muted: #666;
+      --accent-primary: #3b82f6;
+      --accent-success: #10b981;
+      --accent-warning: #f59e0b;
+      --accent-danger: #ef4444;
+      --border-color: #222;
+      --border-hover: #333;
+      --border-focus: #555;
+      --input-bg: rgba(20,20,20,0.7);
+      --gradient-start: #5a5a5a;
+      --gradient-mid: #8c8c8c;
+      --gradient-end: #5a5a5a;
+      --shadow-color: rgba(0,0,0,0.9);
+      --transition-speed: 0.2s;
+    }
+
+    /* Light Theme */
+    .light-mode {
+      --bg-primary: #f5f5f5;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f0f0f0;
+      --text-primary: #333;
+      --text-secondary: #666;
+      --text-muted: #999;
+      --accent-primary: #2563eb;
+      --accent-success: #059669;
+      --accent-warning: #d97706;
+      --accent-danger: #dc2626;
+      --border-color: #e0e0e0;
+      --border-hover: #ccc;
+      --border-focus: #999;
+      --input-bg: #ffffff;
+      --gradient-start: #6b7280;
+      --gradient-mid: #9ca3af;
+      --gradient-end: #6b7280;
+      --shadow-color: rgba(0,0,0,0.1);
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -24,21 +87,48 @@
 
     body {
       min-height: 100vh;
-      background: #000;
-      color: #ddd;
+      background: var(--bg-primary);
+      color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 16px;
       position: relative;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
-    /* Ultra-wide screens (2560px and above) */
+    /* Ultra-wide screens */
     @media (min-width: 2560px) {
-      body {
-        padding: 32px;
-      }
+      body { padding: 32px; }
+    }
+
+    /* Theme Toggle */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 30px;
+      padding: 8px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .theme-toggle i {
+      font-size: 1.2rem;
     }
 
     .login-wrapper {
@@ -47,34 +137,40 @@
       height: auto;
       min-height: 600px;
       max-height: min(800px, 80vh);
-      background: #0a0a0a;
+      background: var(--bg-secondary);
       border-radius: 28px;
       overflow: hidden;
       box-shadow: 
-        0 40px 100px rgba(0,0,0,0.9),
-        inset 0 0 80px rgba(20,20,20,0.6);
+        0 40px 100px var(--shadow-color),
+        inset 0 0 80px rgba(128,128,128,0.05);
       display: flex;
       position: relative;
-      border: 1px solid #111;
+      border: 1px solid var(--border-color);
       animation: fadeIn 0.6s ease-out;
       aspect-ratio: 16 / 9;
     }
 
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
     }
 
     .image-side {
       flex: 1.3;
-      background: #000;
+      background: var(--bg-primary);
       overflow: hidden;
+      position: relative;
+    }
+
+    .image-side::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.3) 100%);
+      pointer-events: none;
     }
 
     .image-side img {
@@ -84,6 +180,11 @@
       object-position: center;
       opacity: 0.88;
       filter: contrast(1.15) brightness(0.92);
+      transition: transform 0.5s ease;
+    }
+
+    .image-side:hover img {
+      transform: scale(1.02);
     }
 
     .form-side {
@@ -92,29 +193,32 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      background: linear-gradient(135deg, rgba(15,15,15,0.92), rgba(8,8,8,0.95));
+      background: linear-gradient(135deg, 
+        rgba(var(--bg-secondary-rgb), 0.95), 
+        rgba(var(--bg-primary-rgb), 0.98));
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       overflow-y: auto;
+      position: relative;
     }
 
-    /* Scrollbar styling for form side when content overflows */
+    /* Scrollbar styling */
     .form-side::-webkit-scrollbar {
       width: 6px;
     }
 
     .form-side::-webkit-scrollbar-track {
-      background: rgba(255,255,255,0.05);
+      background: rgba(128,128,128,0.05);
       border-radius: 10px;
     }
 
     .form-side::-webkit-scrollbar-thumb {
-      background: rgba(255,255,255,0.2);
+      background: rgba(128,128,128,0.2);
       border-radius: 10px;
     }
 
     .form-side::-webkit-scrollbar-thumb:hover {
-      background: rgba(255,255,255,0.3);
+      background: rgba(128,128,128,0.3);
     }
 
     .dots {
@@ -123,7 +227,7 @@
       opacity: 0.3;
       margin-bottom: clamp(1rem, 3vh, 2rem);
       user-select: none;
-      color: #888;
+      color: var(--text-muted);
     }
 
     h1 {
@@ -131,7 +235,7 @@
       font-weight: 400;
       letter-spacing: -1px;
       margin-bottom: 0.5rem;
-      background: linear-gradient(90deg, #e0e0e0, #b0b0b0);
+      background: linear-gradient(90deg, var(--text-primary), var(--text-secondary));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       line-height: 1.2;
@@ -139,20 +243,20 @@
 
     .subtitle {
       font-size: clamp(0.9rem, 2vw, 1.1rem);
-      color: #888;
+      color: var(--text-secondary);
       margin-bottom: clamp(1.5rem, 4vh, 2.5rem);
       font-weight: 300;
     }
 
     /* Info Banner */
     .info-banner {
-      background: rgba(0, 100, 200, 0.2);
-      border-left: 4px solid #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid var(--accent-primary);
       padding: clamp(0.75rem, 2vh, 1rem);
       border-radius: 12px;
       margin-bottom: clamp(1rem, 3vh, 1.5rem);
       font-size: clamp(0.8rem, 1.5vw, 0.9rem);
-      color: #9ac7ff;
+      color: var(--text-primary);
       display: none;
       backdrop-filter: blur(4px);
       border: 1px solid rgba(59, 130, 246, 0.2);
@@ -160,10 +264,10 @@
 
     .info-banner i {
       margin-right: 0.5rem;
-      color: #3b82f6;
+      color: var(--accent-primary);
     }
 
-    /* Alert Messages */
+    /* Alerts */
     .alert {
       display: flex;
       align-items: flex-start;
@@ -173,34 +277,39 @@
       margin-bottom: clamp(1rem, 3vh, 1.5rem);
       font-size: clamp(0.8rem, 1.5vw, 0.9rem);
       backdrop-filter: blur(4px);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .alert-error {
       background: rgba(239, 68, 68, 0.1);
-      border-left: 4px solid #ef4444;
-      color: #fecaca;
+      border-left: 4px solid var(--accent-danger);
+      color: var(--text-primary);
       border: 1px solid rgba(239, 68, 68, 0.2);
-      animation: shake 0.5s ease;
     }
 
     .alert-info {
       background: rgba(59, 130, 246, 0.1);
-      border-left: 4px solid #3b82f6;
-      color: #9ac7ff;
+      border-left: 4px solid var(--accent-primary);
+      color: var(--text-primary);
       border: 1px solid rgba(59, 130, 246, 0.2);
     }
 
     .alert-warning {
       background: rgba(245, 158, 11, 0.1);
-      border-left: 4px solid #f59e0b;
-      color: #fbbf24;
+      border-left: 4px solid var(--accent-warning);
+      color: var(--text-primary);
       border: 1px solid rgba(245, 158, 11, 0.2);
     }
 
     .alert-success {
       background: rgba(16, 185, 129, 0.1);
-      border-left: 4px solid #10b981;
-      color: #6ee7b7;
+      border-left: 4px solid var(--accent-success);
+      color: var(--text-primary);
       border: 1px solid rgba(16, 185, 129, 0.2);
     }
 
@@ -210,23 +319,16 @@
       20%, 40%, 60%, 80% { transform: translateX(5px); }
     }
 
-    .alert-icon {
-      font-size: 1.25rem;
+    .shake {
+      animation: shake 0.5s ease;
     }
 
-    .alert-content {
-      flex: 1;
-    }
+    .alert-icon { font-size: 1.25rem; }
+    .alert-content { flex: 1; }
+    .alert-title { font-weight: 600; margin-bottom: 2px; }
+    .alert-message { opacity: 0.9; }
 
-    .alert-title {
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
-
-    .alert-message {
-      opacity: 0.9;
-    }
-
+    /* Form Elements */
     .form-group {
       margin-bottom: clamp(1rem, 2.5vh, 1.5rem);
       position: relative;
@@ -234,7 +336,7 @@
 
     label {
       font-size: clamp(0.8rem, 1.5vw, 0.92rem);
-      color: #aaa;
+      color: var(--text-secondary);
       margin-bottom: 0.4rem;
       display: block;
       font-weight: 400;
@@ -250,9 +352,9 @@
       left: 1rem;
       top: 50%;
       transform: translateY(-50%);
-      color: #666;
+      color: var(--text-muted);
       font-size: clamp(1rem, 2vw, 1.1rem);
-      transition: color 0.2s;
+      transition: color var(--transition-speed);
       z-index: 1;
     }
 
@@ -261,42 +363,75 @@
       padding: clamp(0.8rem, 2vh, 1.1rem) clamp(1rem, 2vw, 1.3rem);
       padding-left: clamp(2.5rem, 4vw, 3.2rem);
       padding-right: clamp(2.5rem, 4vw, 3.2rem);
-      background: rgba(20,20,20,0.7);
-      border: 1px solid #222;
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
       border-radius: 12px;
-      color: #eee;
+      color: var(--text-primary);
       font-size: clamp(0.9rem, 2vw, 1.05rem);
-      transition: all 0.22s;
+      transition: all var(--transition-speed);
       backdrop-filter: blur(4px);
       -webkit-appearance: none;
     }
 
-    input:hover {
-      border-color: #333;
-    }
-
+    input:hover { border-color: var(--border-hover); }
     input:focus {
       outline: none;
-      border-color: #555;
-      background: rgba(30,30,30,0.8);
-      box-shadow: 0 0 0 3px rgba(80,80,80,0.2);
+      border-color: var(--border-focus);
+      background: var(--input-bg);
+      box-shadow: 0 0 0 3px rgba(128,128,128,0.2);
+    }
+    input:focus + .input-icon { color: var(--text-secondary); }
+    input::placeholder { color: var(--text-muted); opacity: 0.5; }
+    input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Password Strength Meter */
+    .password-strength {
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(128,128,128,0.05);
+      border-radius: 8px;
     }
 
-    input:focus + .input-icon {
-      color: #888;
+    .strength-bar {
+      height: 4px;
+      background: rgba(128,128,128,0.2);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 4px;
     }
 
-    input::placeholder {
-      color: #444;
-      font-size: clamp(0.85rem, 1.8vw, 0.95rem);
+    .strength-fill {
+      height: 100%;
+      width: 0;
+      transition: width 0.3s ease, background-color 0.3s ease;
+      border-radius: 2px;
     }
 
-    input:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    .strength-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
     }
 
-    /* Password Visibility Toggle */
+    .strength-feedback {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      list-style: none;
+    }
+
+    .strength-feedback li {
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .strength-feedback li.valid i { color: var(--accent-success); }
+    .strength-feedback li.invalid i { color: var(--accent-danger); }
+
+    /* Password Toggle */
     .password-toggle {
       position: absolute;
       right: 1rem;
@@ -304,11 +439,11 @@
       transform: translateY(-50%);
       background: none;
       border: none;
-      color: #666;
+      color: var(--text-muted);
       font-size: clamp(1rem, 2vw, 1.2rem);
       cursor: pointer;
       padding: 0.4rem;
-      transition: color 0.2s;
+      transition: color var(--transition-speed);
       z-index: 2;
       display: flex;
       align-items: center;
@@ -316,13 +451,8 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    .password-toggle:hover {
-      color: #aaa;
-    }
-
-    .password-toggle:active {
-      color: #fff;
-    }
+    .password-toggle:hover { color: var(--text-secondary); }
+    .password-toggle:active { color: var(--text-primary); }
 
     /* Divider */
     .divider {
@@ -332,9 +462,9 @@
     }
 
     .divider span {
-      background: #0a0a0a;
+      background: var(--bg-secondary);
       padding: 0 1rem;
-      color: #666;
+      color: var(--text-muted);
       position: relative;
       z-index: 1;
       font-size: 0.9rem;
@@ -342,7 +472,7 @@
 
     .divider hr {
       border: none;
-      border-top: 1px solid #222;
+      border-top: 1px solid var(--border-color);
       position: relative;
       top: -10px;
       z-index: 0;
@@ -360,7 +490,7 @@
       border-radius: 14px;
       cursor: pointer;
       transition: all 0.3s;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      box-shadow: 0 6px 20px var(--shadow-color);
       background-size: 200% 100%;
       display: flex;
       align-items: center;
@@ -375,10 +505,7 @@
       box-shadow: 0 12px 35px rgba(100,100,100,0.3);
     }
 
-    .passkey-btn i {
-      font-size: 1.2rem;
-      color: #4ade80;
-    }
+    .passkey-btn i { font-size: 1.2rem; color: #4ade80; }
 
     /* Form Options */
     .form-options {
@@ -395,7 +522,7 @@
       align-items: center;
       gap: 0.5rem;
       cursor: pointer;
-      color: #888;
+      color: var(--text-secondary);
       font-size: clamp(0.8rem, 1.5vw, 0.9rem);
       user-select: none;
       -webkit-tap-highlight-color: transparent;
@@ -404,24 +531,18 @@
     .remember-me input[type="checkbox"] {
       width: 16px;
       height: 16px;
-      accent-color: #666;
+      accent-color: var(--accent-primary);
       cursor: pointer;
     }
 
-    .trust-device {
-      margin-top: 0.5rem;
-    }
-
-    .trust-device .remember-me {
-      color: #666;
-      font-size: 0.85rem;
-    }
+    .trust-device { margin-top: 0.5rem; }
+    .trust-device .remember-me { color: var(--text-muted); font-size: 0.85rem; }
 
     .forgot-link {
-      color: #888;
+      color: var(--text-muted);
       text-decoration: none;
       font-size: clamp(0.8rem, 1.5vw, 0.9rem);
-      transition: color 0.2s;
+      transition: color var(--transition-speed);
       cursor: pointer;
       background: none;
       border: none;
@@ -429,9 +550,7 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    .forgot-link:hover {
-      color: #b0b0b0;
-    }
+    .forgot-link:hover { color: var(--text-secondary); }
 
     .backup-code-link {
       text-align: right;
@@ -442,7 +561,7 @@
     .submit-btn {
       width: 100%;
       padding: clamp(0.9rem, 2.5vh, 1.2rem);
-      background: linear-gradient(90deg, #5a5a5a 0%, #8c8c8c 50%, #5a5a5a 100%);
+      background: linear-gradient(90deg, var(--gradient-start) 0%, var(--gradient-mid) 50%, var(--gradient-end) 100%);
       color: white;
       font-size: clamp(0.95rem, 2vw, 1.1rem);
       font-weight: 500;
@@ -450,7 +569,7 @@
       border-radius: 14px;
       cursor: pointer;
       transition: all 0.3s;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      box-shadow: 0 6px 20px var(--shadow-color);
       background-size: 200% 100%;
       position: relative;
       overflow: hidden;
@@ -469,7 +588,7 @@
       width: 0;
       height: 0;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255,255,255,0.2);
       transform: translate(-50%, -50%);
       transition: width 0.6s, height 0.6s;
     }
@@ -485,26 +604,15 @@
       box-shadow: 0 12px 35px rgba(100,100,100,0.3);
     }
 
-    .submit-btn:active {
-      transform: translateY(0);
-    }
-
+    .submit-btn:active { transform: translateY(0); }
     .submit-btn:disabled {
       opacity: 0.5;
       cursor: not-allowed;
       transform: none;
     }
+    .submit-btn:disabled::before { display: none; }
 
-    .submit-btn:disabled::before {
-      display: none;
-    }
-
-    .submit-btn.mfa-setup-btn {
-      background: linear-gradient(90deg, #3b82f6, #2563eb);
-      margin-top: 1rem;
-    }
-
-    /* Loading State */
+    /* Loading Spinner */
     .loading-spinner {
       display: inline-block;
       width: 20px;
@@ -527,56 +635,92 @@
       border-radius: 10px;
       text-align: center;
       font-size: clamp(0.75rem, 1.5vw, 0.85rem);
-      color: #fbbf24;
+      color: var(--accent-warning);
       border: 1px solid rgba(245, 158, 11, 0.2);
       display: none;
     }
 
     .rate-limit-warning i {
       margin-right: 0.5rem;
-      color: #f59e0b;
+      color: var(--accent-warning);
     }
 
     /* Session Info */
     .session-info {
       margin-top: 1rem;
       padding: 0.75rem;
-      background: rgba(255,255,255,0.05);
+      background: rgba(128,128,128,0.05);
       border-radius: 8px;
       font-size: 0.8rem;
       display: flex;
       justify-content: space-between;
-      color: #888;
+      color: var(--text-secondary);
     }
 
     .session-info i {
       margin-right: 0.3rem;
-      color: #666;
+      color: var(--text-muted);
     }
+
+    /* Session Management */
+    .session-management {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: rgba(128,128,128,0.05);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .session-management h4 {
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .session-item {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      padding: 0.6rem;
+      background: rgba(128,128,128,0.02);
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .session-item i { color: var(--accent-primary); }
+    .session-time { margin-left: auto; color: var(--text-muted); }
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .btn-icon:hover { color: var(--accent-danger); }
 
     /* MFA Setup Card */
     .mfa-setup {
       margin-top: 1.5rem;
       padding: 1.25rem;
-      background: linear-gradient(135deg, #1a1a1a, #111);
+      background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
       border-radius: 16px;
-      border-left: 4px solid #3b82f6;
+      border-left: 4px solid var(--accent-primary);
       animation: slideUp 0.5s ease;
     }
 
     @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .mfa-setup h3 {
-      color: #fff;
+      color: var(--text-primary);
       font-size: 1rem;
       margin-bottom: 0.5rem;
       display: flex;
@@ -584,12 +728,9 @@
       gap: 0.5rem;
     }
 
-    .mfa-setup h3 i {
-      color: #3b82f6;
-    }
-
+    .mfa-setup h3 i { color: var(--accent-primary); }
     .mfa-setup p {
-      color: #aaa;
+      color: var(--text-secondary);
       font-size: 0.9rem;
       margin-bottom: 1rem;
     }
@@ -600,7 +741,7 @@
       align-items: center;
     }
 
-    .mfa-setup-actions .btn-small {
+    .btn-small {
       padding: 0.6rem 1.2rem;
       border-radius: 8px;
       font-size: 0.9rem;
@@ -611,24 +752,23 @@
     }
 
     .btn-primary {
-      background: #3b82f6;
+      background: var(--accent-primary);
       color: white;
     }
-
     .btn-primary:hover {
-      background: #2563eb;
+      background: var(--accent-primary);
+      filter: brightness(1.1);
       transform: translateY(-1px);
     }
 
     .btn-secondary {
       background: transparent;
-      color: #888;
-      border: 1px solid #333;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
     }
-
     .btn-secondary:hover {
-      border-color: #666;
-      color: #aaa;
+      border-color: var(--border-hover);
+      color: var(--text-primary);
     }
 
     /* Footer */
@@ -651,34 +791,25 @@
       align-items: center;
       gap: 0.3rem;
       font-size: clamp(0.65rem, 1.2vw, 0.75rem);
-      color: #666;
-      transition: color 0.2s;
+      color: var(--text-muted);
+      transition: color var(--transition-speed);
       cursor: help;
     }
 
-    .badge-item:hover {
-      color: #888;
-    }
-
-    .badge-item i {
-      color: #4ade80;
-      font-size: clamp(0.7rem, 1.3vw, 0.8rem);
-    }
+    .badge-item:hover { color: var(--text-secondary); }
+    .badge-item i { color: var(--accent-success); font-size: clamp(0.7rem, 1.3vw, 0.8rem); }
 
     .version-info {
       font-size: clamp(0.65rem, 1.2vw, 0.75rem);
-      color: #555;
+      color: var(--text-muted);
     }
 
-    .version-info span {
-      color: #888;
-      font-weight: 600;
-    }
+    .version-info span { color: var(--text-secondary); font-weight: 600; }
 
     .security-flags {
       font-size: 0.7rem;
       margin-top: 4px;
-      color: #555;
+      color: var(--text-muted);
       display: flex;
       justify-content: center;
       gap: 0.5rem;
@@ -686,20 +817,17 @@
 
     .security-flags i {
       cursor: help;
-      transition: color 0.2s;
+      transition: color var(--transition-speed);
     }
-
-    .security-flags i:hover {
-      color: #888;
-    }
+    .security-flags i:hover { color: var(--text-secondary); }
 
     /* Attempt Counter */
     .attempt-counter {
       display: inline-block;
       padding: 2px 8px;
       border-radius: 20px;
-      background: rgba(100, 100, 100, 0.2);
-      color: #aaa;
+      background: rgba(128,128,128,0.1);
+      color: var(--text-secondary);
       font-weight: 600;
       transition: all 0.2s;
     }
@@ -707,7 +835,7 @@
     /* Helper text */
     .helper-text {
       font-size: 0.75rem;
-      color: #666;
+      color: var(--text-muted);
       margin-top: 4px;
       display: flex;
       align-items: center;
@@ -716,47 +844,36 @@
 
     .helper-text i {
       font-size: 0.7rem;
-      color: #888;
+      color: var(--text-secondary);
     }
 
-    /* ============================================ */
-    /* RESPONSIVE BREAKPOINTS */
-    /* ============================================ */
-
-    /* Large Desktop (1200px - 1600px) */
-    @media (min-width: 1200px) and (max-width: 1600px) {
-      .login-wrapper {
-        max-width: 900px;
-        min-height: 550px;
-      }
+    /* Biometric Indicator */
+    .biometric-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border-radius: 20px;
+      font-size: 0.7rem;
+      color: var(--accent-success);
+      margin-left: 8px;
     }
 
-    /* Medium Desktop (992px - 1199px) */
-    @media (min-width: 992px) and (max-width: 1199px) {
-      .login-wrapper {
-        max-width: 850px;
-        min-height: 500px;
-      }
+    /* SR Only - Accessibility */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
     }
 
-    /* Tablets Landscape (768px - 991px) */
-    @media (min-width: 768px) and (max-width: 991px) {
-      .login-wrapper {
-        aspect-ratio: auto;
-        min-height: 450px;
-        max-height: none;
-      }
-      
-      .image-side {
-        flex: 1.2;
-      }
-      
-      .form-side {
-        padding: 2rem;
-      }
-    }
-
-    /* Tablets Portrait & Large Phones (576px - 767px) */
+    /* Responsive Breakpoints */
     @media (max-width: 767px) {
       .login-wrapper {
         flex-direction: column;
@@ -766,337 +883,128 @@
         max-height: none;
         border-radius: 24px;
       }
-
-      .image-side {
-        height: 180px;
-        flex: none;
-      }
-
-      .form-side {
-        padding: 1.8rem;
-      }
-
-      .dots {
-        margin-bottom: 1.2rem;
-      }
-      
-      h1 {
-        font-size: 2rem;
-      }
-      
-      .subtitle {
-        margin-bottom: 1.8rem;
-      }
-
-      .mfa-setup-actions {
-        flex-direction: column;
-      }
-
-      .mfa-setup-actions .btn-small {
-        width: 100%;
-      }
+      .image-side { height: 180px; flex: none; }
+      .form-side { padding: 1.8rem; }
+      .dots { margin-bottom: 1.2rem; }
+      h1 { font-size: 2rem; }
+      .subtitle { margin-bottom: 1.8rem; }
+      .mfa-setup-actions { flex-direction: column; }
+      .mfa-setup-actions .btn-small { width: 100%; }
     }
 
-    /* Small Phones (375px - 575px) */
-    @media (min-width: 375px) and (max-width: 575px) {
-      body {
-        padding: 12px;
-      }
-      
-      .login-wrapper {
-        border-radius: 20px;
-      }
-      
-      .image-side {
-        height: 140px;
-      }
-      
-      .form-side {
-        padding: 1.5rem;
-      }
-      
-      h1 {
-        font-size: 1.8rem;
-      }
-      
-      .form-options {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.8rem;
-      }
-      
-      .security-badge {
-        flex-direction: column;
-        gap: 0.4rem;
-      }
-
-      .security-flags {
-        flex-wrap: wrap;
-      }
+    @media (max-width: 575px) {
+      body { padding: 12px; }
+      .login-wrapper { border-radius: 20px; }
+      .image-side { height: 140px; }
+      .form-side { padding: 1.5rem; }
+      h1 { font-size: 1.8rem; }
+      .form-options { flex-direction: column; align-items: flex-start; gap: 0.8rem; }
+      .security-badge { flex-direction: column; gap: 0.4rem; }
     }
 
-    /* Extra Small Phones (below 375px) */
     @media (max-width: 374px) {
-      body {
-        padding: 8px;
-      }
-      
-      .login-wrapper {
-        border-radius: 16px;
-      }
-      
-      .image-side {
-        height: 120px;
-      }
-      
-      .form-side {
-        padding: 1.2rem;
-      }
-      
-      h1 {
-        font-size: 1.5rem;
-      }
-      
-      .dots {
-        font-size: 1.2rem;
-        letter-spacing: 4px;
-      }
-      
-      .form-options {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.8rem;
-      }
-      
-      input {
-        padding: 0.8rem;
-        padding-left: 2.5rem;
-        padding-right: 2.5rem;
-      }
-      
-      .input-icon {
-        left: 0.8rem;
-      }
-      
-      .password-toggle {
-        right: 0.8rem;
-      }
-      
-      .security-badge {
-        flex-direction: column;
-        gap: 0.3rem;
-      }
-    }
-
-    /* iPhone SE and similar */
-    @media (max-width: 320px) {
-      .image-side {
-        height: 100px;
-      }
-      
-      .form-side {
-        padding: 1rem;
-      }
-      
-      h1 {
-        font-size: 1.4rem;
-      }
-      
-      .badge-item {
-        font-size: 0.6rem;
-      }
-    }
-
-    /* Large Phones Landscape */
-    @media (orientation: landscape) and (max-height: 500px) {
-      .login-wrapper {
-        aspect-ratio: auto;
-        max-height: 90vh;
-        min-height: auto;
-      }
-      
-      .image-side {
-        height: auto;
-      }
-      
-      .form-side {
-        padding: 1rem 1.5rem;
-      }
-      
-      .dots {
-        margin-bottom: 0.5rem;
-      }
-      
-      h1 {
-        margin-bottom: 0.2rem;
-      }
-      
-      .subtitle {
-        margin-bottom: 1rem;
-      }
-      
-      .form-group {
-        margin-bottom: 0.8rem;
-      }
-      
-      .login-footer {
-        margin-top: 1rem;
-      }
-
-      .mfa-setup {
-        margin-top: 0.5rem;
-        padding: 0.75rem;
-      }
-    }
-
-    /* 4K and Ultra-wide screens */
-    @media (min-width: 2000px) {
-      .login-wrapper {
-        max-width: 1200px;
-        min-height: 700px;
-      }
-      
-      .form-side {
-        padding: 3rem;
-      }
-      
-      h1 {
-        font-size: 3.2rem;
-      }
-      
-      .subtitle {
-        font-size: 1.3rem;
-      }
-      
-      input {
-        padding: 1.3rem;
-        padding-left: 3.5rem;
-        padding-right: 3.5rem;
-        font-size: 1.2rem;
-      }
-      
-      .input-icon {
-        font-size: 1.3rem;
-        left: 1.2rem;
-      }
-      
-      .password-toggle {
-        font-size: 1.3rem;
-      }
-      
-      .submit-btn {
-        padding: 1.3rem;
-        font-size: 1.2rem;
-      }
+      body { padding: 8px; }
+      .login-wrapper { border-radius: 16px; }
+      .image-side { height: 120px; }
+      .form-side { padding: 1.2rem; }
+      h1 { font-size: 1.5rem; }
+      .dots { font-size: 1.2rem; letter-spacing: 4px; }
+      input { padding: 0.8rem; padding-left: 2.5rem; padding-right: 2.5rem; }
+      .input-icon { left: 0.8rem; }
+      .password-toggle { right: 0.8rem; }
     }
 
     /* Touch Device Optimizations */
     @media (hover: none) and (pointer: coarse) {
-      input, 
-      .submit-btn, 
-      .password-toggle,
-      .forgot-link,
-      .remember-me,
-      .passkey-btn,
-      .btn-small {
+      input, .submit-btn, .password-toggle, .forgot-link, .remember-me, .passkey-btn, .btn-small {
         min-height: 48px;
       }
-      
       .remember-me input[type="checkbox"] {
         width: 20px;
         height: 20px;
       }
-      
-      .password-toggle {
-        padding: 12px;
-      }
+      .password-toggle { padding: 12px; }
     }
 
     /* High Contrast Mode */
     @media (prefers-contrast: high) {
-      input {
-        border-width: 2px;
-      }
-      
-      .alert {
-        border-width: 2px;
-      }
-      
-      .badge-item i {
-        color: #fff;
-      }
+      input { border-width: 2px; }
+      .alert { border-width: 2px; }
+      .badge-item i { color: var(--text-primary); }
     }
 
     /* Reduced Motion */
     @media (prefers-reduced-motion: reduce) {
-      .login-wrapper,
-      .submit-btn::before,
-      .loading-spinner,
-      .mfa-setup {
+      .login-wrapper, .submit-btn::before, .loading-spinner, .mfa-setup,
+      .fadeIn, .slideIn, .shake, .slideUp {
         animation: none;
-      }
-    }
-
-    /* Dark mode support */
-    @media (prefers-color-scheme: dark) {
-      :root {
-        color-scheme: dark;
       }
     }
   </style>
 </head>
 <body>
+  <!-- Theme Toggle -->
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+    <i class="fas fa-moon" id="themeIcon"></i>
+    <span class="sr-only">Toggle dark/light mode</span>
+  </button>
 
   <div class="login-wrapper">
     <div class="image-side">
-      <img src="https://img.freepik.com/free-photo/3d-rendering-abstract-black-white-background_23-2150914061.jpg" alt="Abstract black chrome background">
+      <img 
+        src="https://img.freepik.com/free-photo/3d-rendering-abstract-black-white-background_23-2150914061.jpg" 
+        alt="Abstract black chrome background"
+        loading="eager"
+        srcset="
+          https://img.freepik.com/free-photo/3d-rendering-abstract-black-white-background_23-2150914061.jpg?w=300 300w,
+          https://img.freepik.com/free-photo/3d-rendering-abstract-black-white-background_23-2150914061.jpg?w=600 600w,
+          https://img.freepik.com/free-photo/3d-rendering-abstract-black-white-background_23-2150914061.jpg?w=1200 1200w
+        "
+        sizes="(max-width: 600px) 300px, (max-width: 1200px) 600px, 1200px"
+      >
     </div>
 
     <div class="form-side">
       <div class="dots">•••</div>
 
       <h1>Welcome Back</h1>
-      <p class="subtitle">Secure BluuuWeb enterprise access</p>
+      <p class="subtitle">Secure enterprise access <span class="biometric-indicator" id="biometricIndicator" style="display: none;">
+        <i class="fas fa-fingerprint"></i> Biometric Ready
+      </span></p>
 
-      <!-- Info Banner (Shown when URL has parameters) -->
+      <!-- Info Banner -->
       <div class="info-banner" id="infoBanner">
         <i class="fas fa-info-circle"></i>
         <span id="infoMessage"></span>
       </div>
 
-      <!-- CSRF Token - Will be injected by server -->
-      <input type="hidden" id="csrfToken" value="{{csrfToken}}">
+      <!-- CSRF Token - Server Injected -->
+      <input type="hidden" id="csrfToken" value="{{csrfToken|json}}">
 
-      <!-- Device Fingerprint (Hidden) -->
+      <!-- Device Fingerprint -->
       <input type="hidden" id="deviceFingerprint" value="">
 
       <!-- Error Alert -->
-      <div class="alert alert-error" id="errorAlert" style="display: none;">
-        <div class="alert-icon">
-          <i class="fas fa-exclamation-circle"></i>
-        </div>
+      <div class="alert alert-error" id="errorAlert" style="display: none;" role="alert">
+        <div class="alert-icon"><i class="fas fa-exclamation-circle"></i></div>
         <div class="alert-content">
           <div class="alert-title">Authentication Failed</div>
-          <div class="alert-message" id="errorMessage">Invalid username or password</div>
+          <div class="alert-message" id="errorMessage"></div>
         </div>
       </div>
 
       <!-- Rate Limit Alert -->
-      <div class="alert alert-info" id="rateLimitAlert" style="display: none;">
-        <div class="alert-icon">
-          <i class="fas fa-clock"></i>
-        </div>
+      <div class="alert alert-info" id="rateLimitAlert" style="display: none;" role="alert">
+        <div class="alert-icon"><i class="fas fa-clock"></i></div>
         <div class="alert-content">
           <div class="alert-title">Too Many Attempts</div>
-          <div class="alert-message" id="rateLimitMessage">Please wait before trying again</div>
+          <div class="alert-message" id="rateLimitMessage"></div>
         </div>
       </div>
 
       <!-- Warning Alert -->
-      <div class="alert alert-warning" id="warningAlert" style="display: none;">
-        <div class="alert-icon">
-          <i class="fas fa-exclamation-triangle"></i>
-        </div>
+      <div class="alert alert-warning" id="warningAlert" style="display: none;" role="alert">
+        <div class="alert-icon"><i class="fas fa-exclamation-triangle"></i></div>
         <div class="alert-content">
           <div class="alert-title" id="warningTitle">Warning</div>
           <div class="alert-message" id="warningMessage"></div>
@@ -1104,18 +1012,19 @@
       </div>
 
       <!-- Success Alert -->
-      <div class="alert alert-success" id="successAlert" style="display: none;">
-        <div class="alert-icon">
-          <i class="fas fa-check-circle"></i>
-        </div>
+      <div class="alert alert-success" id="successAlert" style="display: none;" role="alert">
+        <div class="alert-icon"><i class="fas fa-check-circle"></i></div>
         <div class="alert-content">
           <div class="alert-title" id="successTitle">Success</div>
           <div class="alert-message" id="successMessage"></div>
         </div>
       </div>
 
-      <!-- Passkey Button (WebAuthn) -->
-      <button type="button" class="passkey-btn" id="passkeyBtn" style="display: none;">
+      <!-- Live Region for Screen Readers -->
+      <div class="sr-only" role="status" aria-live="polite" id="statusMessage"></div>
+
+      <!-- Passkey Button -->
+      <button type="button" class="passkey-btn" id="passkeyBtn" style="display: none;" aria-label="Sign in with passkey">
         <i class="fas fa-fingerprint"></i>
         <span>Sign in with Passkey</span>
       </button>
@@ -1131,24 +1040,27 @@
         <div class="form-group">
           <label for="username">Username</label>
           <div class="input-wrapper">
-            <i class="fas fa-user input-icon"></i>
+            <i class="fas fa-user input-icon" aria-hidden="true"></i>
             <input 
               type="text" 
               id="username" 
               name="username" 
               placeholder="Enter your username" 
-              value="admin"
+              value=""
               required 
               autofocus
               autocomplete="username"
+              aria-required="true"
+              aria-describedby="usernameHelp"
             >
           </div>
+          <div id="usernameHelp" class="sr-only">Enter your username</div>
         </div>
 
         <div class="form-group">
           <label for="password">Password</label>
           <div class="input-wrapper">
-            <i class="fas fa-lock input-icon"></i>
+            <i class="fas fa-lock input-icon" aria-hidden="true"></i>
             <input 
               type="password" 
               id="password" 
@@ -1156,6 +1068,8 @@
               placeholder="Enter your password" 
               required
               autocomplete="current-password"
+              aria-required="true"
+              aria-describedby="passwordStrength"
             >
             <button 
               type="button" 
@@ -1163,19 +1077,32 @@
               id="togglePassword"
               tabindex="-1"
               aria-label="Toggle password visibility"
+              aria-pressed="false"
             >
-              <i class="fa-regular fa-eye"></i>
+              <i class="fa-regular fa-eye" aria-hidden="true"></i>
             </button>
+          </div>
+          
+          <!-- Password Strength Meter -->
+          <div class="password-strength" id="passwordStrength" style="display: none;">
+            <div class="strength-bar">
+              <div class="strength-fill" id="strengthFill"></div>
+            </div>
+            <div class="strength-text">
+              <span id="strengthLabel">Strength: </span>
+              <span id="strengthScore">0/100</span>
+            </div>
+            <ul class="strength-feedback" id="strengthFeedback"></ul>
           </div>
         </div>
 
-        <!-- MFA Field (Hidden by default) -->
+        <!-- MFA Field -->
         <div class="form-group" id="mfaGroup" style="display: none;">
           <label for="mfaCode">
-            <i class="fas fa-shield-alt"></i> Two-Factor Authentication Code
+            <i class="fas fa-shield-alt" aria-hidden="true"></i> Two-Factor Authentication Code
           </label>
           <div class="input-wrapper">
-            <i class="fas fa-key input-icon"></i>
+            <i class="fas fa-key input-icon" aria-hidden="true"></i>
             <input 
               type="text" 
               id="mfaCode" 
@@ -1185,28 +1112,29 @@
               pattern="[0-9]{6}"
               inputmode="numeric"
               autocomplete="off"
+              aria-label="Two-factor authentication code"
             >
           </div>
           <div class="helper-text">
-            <i class="fas fa-info-circle"></i>
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
             <span>Enter the code from your authenticator app</span>
           </div>
         </div>
 
-        <!-- Backup Code Link (Hidden by default) -->
+        <!-- Backup Code Link -->
         <div class="backup-code-link" id="backupCodeLink" style="display: none;">
           <button type="button" class="forgot-link" onclick="showBackupCodeInput()">
             <i class="fas fa-redo-alt"></i> Use backup code instead
           </button>
         </div>
 
-        <!-- Backup Code Input (Hidden by default) -->
+        <!-- Backup Code Input -->
         <div class="form-group" id="backupCodeGroup" style="display: none;">
           <label for="backupCode">
-            <i class="fas fa-ticket-alt"></i> Backup Recovery Code
+            <i class="fas fa-ticket-alt" aria-hidden="true"></i> Backup Recovery Code
           </label>
           <div class="input-wrapper">
-            <i class="fas fa-barcode input-icon"></i>
+            <i class="fas fa-barcode input-icon" aria-hidden="true"></i>
             <input 
               type="text" 
               id="backupCode" 
@@ -1214,51 +1142,58 @@
               placeholder="XXXX-XXXX-XXXX-XXXX" 
               pattern="[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}"
               autocomplete="off"
+              aria-label="Backup recovery code"
             >
           </div>
           <div class="helper-text">
-            <i class="fas fa-info-circle"></i>
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
             <span>Use one of your recovery codes (each code can only be used once)</span>
           </div>
         </div>
 
         <div class="form-options">
           <label class="remember-me">
-            <input type="checkbox" id="rememberMe">
+            <input type="checkbox" id="rememberMe" aria-label="Remember me">
             <span>Remember me</span>
           </label>
           <button type="button" class="forgot-link" onclick="showHelp(event)">Need help?</button>
         </div>
 
-        <!-- Trust Device Option (Hidden by default) -->
+        <!-- Trust Device Option -->
         <div class="trust-device" id="trustDeviceOption" style="display: none;">
           <label class="remember-me">
-            <input type="checkbox" id="trustDevice">
+            <input type="checkbox" id="trustDevice" aria-label="Trust this device">
             <span>Trust this device for 30 days</span>
           </label>
         </div>
 
-        <button type="submit" class="submit-btn" id="loginBtn">
+        <button type="submit" class="submit-btn" id="loginBtn" aria-label="Sign in">
           <span>Sign In</span>
-          <i class="fas fa-arrow-right"></i>
+          <i class="fas fa-arrow-right" aria-hidden="true"></i>
         </button>
       </form>
 
       <!-- Rate Limit Warning -->
-      <div class="rate-limit-warning" id="rateLimitWarning">
-        <i class="fas fa-exclamation-triangle"></i>
+      <div class="rate-limit-warning" id="rateLimitWarning" role="alert">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
         <span id="rateLimitWarningMessage"></span>
       </div>
 
-      <!-- Session Info (Hidden by default) -->
-      <div class="session-info" id="sessionInfo" style="display: none;"></div>
+      <!-- Session Info -->
+      <div class="session-info" id="sessionInfo" style="display: none;" role="complementary"></div>
 
-      <!-- MFA Setup Card (Hidden by default) -->
+      <!-- Session Management -->
+      <div class="session-management" id="sessionManagement" style="display: none;">
+        <h4><i class="fas fa-laptop"></i> Active Sessions</h4>
+        <div id="sessionList"></div>
+        <button onclick="terminateOtherSessions()" class="btn-small btn-secondary" style="width: 100%; margin-top: 8px;">
+          <i class="fas fa-sign-out-alt"></i> Terminate Others
+        </button>
+      </div>
+
+      <!-- MFA Setup Card -->
       <div class="mfa-setup" id="mfaSetup" style="display: none;">
-        <h3>
-          <i class="fas fa-shield-alt"></i>
-          Enhance Your Security
-        </h3>
+        <h3><i class="fas fa-shield-alt"></i> Enhance Your Security</h3>
         <p>Enable two-factor authentication to protect your account from unauthorized access.</p>
         <div class="mfa-setup-actions">
           <button type="button" class="btn-small btn-primary" onclick="setupMFA()">
@@ -1295,8 +1230,8 @@
           </div>
         </div>
         <div class="version-info">
-          <span>Redirector Pro v4.1.0</span> • Enterprise Edition • 
-          <span class="attempt-counter" id="attemptCounter">5</span> attempts remaining
+          <span>Redirector Pro v4.2.0</span> • Enterprise Edition • 
+          <span class="attempt-counter" id="attemptCounter" aria-live="polite">5</span> attempts remaining
         </div>
         <div class="security-flags">
           <i class="fas fa-shield-alt" title="MFA Available"></i>
@@ -1310,795 +1245,1007 @@
   </div>
 
   <script nonce="{{NONCE}}">
-    // Server-side injected variables
-    const CSRF_TOKEN = '{{csrfToken}}';
-    const ADMIN_USERNAME = '{{ADMIN_USERNAME}}';
-    const MAX_LOGIN_ATTEMPTS = {{LOGIN_ATTEMPTS_MAX}} || 5;
-    const LOGIN_BLOCK_DURATION = {{LOGIN_BLOCK_DURATION}} || 300000;
-    const VERSION = '{{version}}';
-    const MFA_ENABLED = {{MFA_ENABLED}} === 'true' || false;
-    const WEBAUTHN_ENABLED = {{WEBAUTHN_ENABLED}} === 'true' || false;
-
-    // Configuration
-    const MAX_ATTEMPTS = parseInt(MAX_LOGIN_ATTEMPTS) || 5;
-    const LOCKOUT_TIME = parseInt(LOGIN_BLOCK_DURATION) || 5 * 60 * 1000;
-    const DEBUG_MODE = {{DEBUG}} === 'true' || false;
-    const SESSION_TIMEOUT = {{SESSION_TTL}} || 86400;
-
-    // State
-    let loginAttempts = 0;
-    let lockoutUntil = null;
-    let csrfToken = CSRF_TOKEN || '';
-    let countdownInterval = null;
-    let mfaRequired = false;
-    let mfaSessionId = null;
-    let backupCodesAvailable = false;
-    let activityTimer = null;
-    let isActive = true;
-
-    // DOM Elements
-    const loginForm = document.getElementById('loginForm');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const mfaInput = document.getElementById('mfaCode');
-    const backupCodeInput = document.getElementById('backupCode');
-    const loginBtn = document.getElementById('loginBtn');
-    const passkeyBtn = document.getElementById('passkeyBtn');
-    const passkeyDivider = document.getElementById('passkeyDivider');
-    const errorAlert = document.getElementById('errorAlert');
-    const errorMessage = document.getElementById('errorMessage');
-    const rateLimitAlert = document.getElementById('rateLimitAlert');
-    const rateLimitMessage = document.getElementById('rateLimitMessage');
-    const rateLimitWarning = document.getElementById('rateLimitWarning');
-    const rateLimitWarningMessage = document.getElementById('rateLimitWarningMessage');
-    const warningAlert = document.getElementById('warningAlert');
-    const warningTitle = document.getElementById('warningTitle');
-    const warningMessage = document.getElementById('warningMessage');
-    const successAlert = document.getElementById('successAlert');
-    const successTitle = document.getElementById('successTitle');
-    const successMessage = document.getElementById('successMessage');
-    const attemptCounter = document.getElementById('attemptCounter');
-    const togglePassword = document.getElementById('togglePassword');
-    const rememberMe = document.getElementById('rememberMe');
-    const trustDevice = document.getElementById('trustDevice');
-    const infoBanner = document.getElementById('infoBanner');
-    const infoMessage = document.getElementById('infoMessage');
-    const mfaGroup = document.getElementById('mfaGroup');
-    const mfaBadge = document.getElementById('mfaBadge');
-    const backupCodeLink = document.getElementById('backupCodeLink');
-    const backupCodeGroup = document.getElementById('backupCodeGroup');
-    const trustDeviceOption = document.getElementById('trustDeviceOption');
-    const sessionInfo = document.getElementById('sessionInfo');
-    const mfaSetup = document.getElementById('mfaSetup');
-    const deviceFingerprint = document.getElementById('deviceFingerprint');
-
-    // ============================================
-    // IMMEDIATE URL CLEANUP
-    // ============================================
     (function() {
-      if (DEBUG_MODE) console.log('📍 Current URL:', window.location.href);
-      
-      if (window.location.search) {
-        if (DEBUG_MODE) console.log('🧹 Found query parameters, cleaning URL...');
+      'use strict';
+
+      // ============================================
+      // Server Variables (JSON encoded for security)
+      // ============================================
+      const CONFIG = {
+        csrfToken: JSON.parse('{{csrfToken|json}}' || '""'),
+        adminUsername: JSON.parse('{{ADMIN_USERNAME|json}}' || '""'),
+        maxAttempts: parseInt('{{LOGIN_ATTEMPTS_MAX}}' || '5'),
+        blockDuration: parseInt('{{LOGIN_BLOCK_DURATION}}' || '300000'),
+        version: JSON.parse('{{version|json}}' || '"4.2.0"'),
+        mfaEnabled: '{{MFA_ENABLED}}' === 'true',
+        webauthnEnabled: '{{WEBAUTHN_ENABLED}}' === 'true',
+        debug: '{{DEBUG}}' === 'true',
+        sessionTtl: parseInt('{{SESSION_TTL}}' || '86400'),
+        nonce: JSON.parse('{{NONCE|json}}' || '""')
+      };
+
+      // ============================================
+      // State Management
+      // ============================================
+      const State = {
+        loginAttempts: 0,
+        lockoutUntil: null,
+        mfaRequired: false,
+        mfaSessionId: null,
+        backupCodesAvailable: false,
+        isActive: true,
+        csrfToken: CONFIG.csrfToken,
+        deviceFingerprint: '',
+        theme: localStorage.getItem('theme') || 
+                (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      };
+
+      // ============================================
+      // DOM Elements
+      // ============================================
+      const DOM = {
+        loginForm: document.getElementById('loginForm'),
+        username: document.getElementById('username'),
+        password: document.getElementById('password'),
+        mfaCode: document.getElementById('mfaCode'),
+        backupCode: document.getElementById('backupCode'),
+        loginBtn: document.getElementById('loginBtn'),
+        passkeyBtn: document.getElementById('passkeyBtn'),
+        passkeyDivider: document.getElementById('passkeyDivider'),
+        errorAlert: document.getElementById('errorAlert'),
+        errorMessage: document.getElementById('errorMessage'),
+        rateLimitAlert: document.getElementById('rateLimitAlert'),
+        rateLimitMessage: document.getElementById('rateLimitMessage'),
+        rateLimitWarning: document.getElementById('rateLimitWarning'),
+        rateLimitWarningMessage: document.getElementById('rateLimitWarningMessage'),
+        warningAlert: document.getElementById('warningAlert'),
+        warningTitle: document.getElementById('warningTitle'),
+        warningMessage: document.getElementById('warningMessage'),
+        successAlert: document.getElementById('successAlert'),
+        successTitle: document.getElementById('successTitle'),
+        successMessage: document.getElementById('successMessage'),
+        attemptCounter: document.getElementById('attemptCounter'),
+        togglePassword: document.getElementById('togglePassword'),
+        rememberMe: document.getElementById('rememberMe'),
+        trustDevice: document.getElementById('trustDevice'),
+        infoBanner: document.getElementById('infoBanner'),
+        infoMessage: document.getElementById('infoMessage'),
+        mfaGroup: document.getElementById('mfaGroup'),
+        mfaBadge: document.getElementById('mfaBadge'),
+        backupCodeLink: document.getElementById('backupCodeLink'),
+        backupCodeGroup: document.getElementById('backupCodeGroup'),
+        trustDeviceOption: document.getElementById('trustDeviceOption'),
+        sessionInfo: document.getElementById('sessionInfo'),
+        mfaSetup: document.getElementById('mfaSetup'),
+        deviceFingerprint: document.getElementById('deviceFingerprint'),
+        themeToggle: document.getElementById('themeToggle'),
+        themeIcon: document.getElementById('themeIcon'),
+        biometricIndicator: document.getElementById('biometricIndicator'),
+        statusMessage: document.getElementById('statusMessage'),
+        sessionManagement: document.getElementById('sessionManagement'),
+        sessionList: document.getElementById('sessionList'),
+        strengthMeter: document.getElementById('passwordStrength'),
+        strengthFill: document.getElementById('strengthFill'),
+        strengthScore: document.getElementById('strengthScore'),
+        strengthFeedback: document.getElementById('strengthFeedback')
+      };
+
+      // ============================================
+      // Utility Functions
+      // ============================================
+      const Utils = {
+        log: function(...args) {
+          if (CONFIG.debug) console.log('[Login]', ...args);
+        },
         
-        if (infoBanner) {
-          infoMessage.textContent = 'Removed login parameters from URL for security';
-          infoBanner.style.display = 'flex';
-          
+        error: function(...args) {
+          console.error('[Login Error]', ...args);
+        },
+
+        showError: function(message) {
+          DOM.errorMessage.textContent = message;
+          DOM.errorAlert.style.display = 'flex';
+          DOM.loginForm.classList.add('shake');
           setTimeout(() => {
-            infoBanner.style.display = 'none';
+            DOM.errorAlert.style.display = 'none';
+            DOM.loginForm.classList.remove('shake');
           }, 5000);
-        }
-        
-        const cleanUrl = window.location.protocol + '//' + 
-                        window.location.host + 
-                        window.location.pathname;
-        
-        window.history.replaceState(null, null, cleanUrl);
-        if (DEBUG_MODE) console.log('✅ URL cleaned:', cleanUrl);
-      }
-      
-      if (window.location.hash && window.location.hash.includes('=')) {
-        window.history.replaceState(null, null, window.location.pathname);
-        if (DEBUG_MODE) console.log('🧹 Cleaned hash from URL');
-      }
-    })();
+          this.updateStatusMessage(message);
+        },
 
-    // ============================================
-    // Initialize
-    // ============================================
-    document.addEventListener('DOMContentLoaded', initialize);
-
-    async function initialize() {
-      const tokenElement = document.getElementById('csrfToken');
-      if (tokenElement && tokenElement.value) {
-        csrfToken = tokenElement.value;
-      }
-      
-      if (!csrfToken) {
-        console.error('❌ CSRF token not found in page');
-        showError('Security token missing. Please refresh the page.');
-        setTimeout(() => window.location.reload(), 2000);
-        return;
-      }
-      
-      if (DEBUG_MODE) console.log('✅ CSRF token loaded from page');
-      
-      // Set default username if provided by server
-      if (ADMIN_USERNAME && ADMIN_USERNAME !== '{{ADMIN_USERNAME}}') {
-        usernameInput.value = ADMIN_USERNAME;
-      }
-      
-      loadSavedCredentials();
-      startAttemptTimer();
-      generateDeviceFingerprint();
-      
-      if (window.location.search || window.location.hash) {
-        window.history.replaceState(null, null, window.location.pathname);
-      }
-      
-      // Initialize WebAuthn if available
-      if (WEBAUTHN_ENABLED && window.PublicKeyCredential) {
-        initializeWebAuthn();
-      }
-      
-      // Check device trust status
-      await checkDeviceTrust();
-      
-      // Setup activity monitoring
-      setupActivityMonitoring();
-      
-      // Check if should show MFA setup
-      setTimeout(checkMFASetupPrompt, 2000);
-      
-      // Update session info periodically
-      setInterval(updateSessionInfo, 30000);
-    }
-
-    // Load saved credentials
-    function loadSavedCredentials() {
-      try {
-        const savedUsername = localStorage.getItem('redirector_username');
-        if (savedUsername) {
-          usernameInput.value = savedUsername;
-          rememberMe.checked = true;
-        }
-        
-        const mfaDismissed = localStorage.getItem('mfa_setup_dismissed');
-        if (mfaDismissed) {
-          const dismissedTime = parseInt(mfaDismissed);
-          const oneWeek = 7 * 24 * 60 * 60 * 1000;
-          if (Date.now() - dismissedTime < oneWeek) {
-            mfaSetup.style.display = 'none';
-          }
-        }
-      } catch (err) {
-        if (DEBUG_MODE) console.error('Failed to load saved data:', err);
-      }
-    }
-
-    // Generate device fingerprint
-    function generateDeviceFingerprint() {
-      const components = [
-        navigator.userAgent,
-        navigator.language,
-        screen.colorDepth,
-        screen.width + 'x' + screen.height,
-        new Date().getTimezoneOffset(),
-        navigator.hardwareConcurrency || 'unknown',
-        navigator.deviceMemory || 'unknown',
-        !!navigator.maxTouchPoints,
-        !!window.indexedDB,
-        !!window.localStorage,
-        !!window.sessionStorage
-      ];
-      
-      const fingerprint = components.join('|||');
-      const hash = btoa(fingerprint).substring(0, 32);
-      
-      deviceFingerprint.value = hash;
-      if (DEBUG_MODE) console.log('🔑 Device fingerprint generated');
-      return hash;
-    }
-
-    // Check device trust status
-    async function checkDeviceTrust() {
-      const fingerprint = deviceFingerprint.value;
-      
-      try {
-        const response = await fetch('/api/auth/device-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': csrfToken
-          },
-          body: JSON.stringify({ fingerprint })
-        });
-        
-        const data = await response.json();
-        
-        if (data.requiresTrust) {
-          trustDeviceOption.style.display = 'block';
-        }
-        
-        if (data.requiresMFA) {
-          mfaRequired = true;
-          mfaGroup.style.display = 'block';
-          mfaBadge.style.display = 'flex';
-        }
-        
-        if (data.backupCodesAvailable) {
-          backupCodesAvailable = true;
-          backupCodeLink.style.display = 'block';
-        }
-        
-      } catch (err) {
-        if (DEBUG_MODE) console.error('Device check failed:', err);
-      }
-    }
-
-    // Check MFA setup prompt
-    function checkMFASetupPrompt() {
-      if (mfaRequired || !MFA_ENABLED) return;
-      
-      const dismissed = localStorage.getItem('mfa_setup_dismissed');
-      if (!dismissed) {
-        mfaSetup.style.display = 'block';
-        return;
-      }
-      
-      const dismissedTime = parseInt(dismissed);
-      const oneWeek = 7 * 24 * 60 * 60 * 1000;
-      
-      if (Date.now() - dismissedTime > oneWeek) {
-        mfaSetup.style.display = 'block';
-      }
-    }
-
-    // Setup WebAuthn
-    async function initializeWebAuthn() {
-      try {
-        const response = await fetch('/api/auth/webauthn/available', {
-          headers: { 'X-CSRF-Token': csrfToken }
-        });
-        const data = await response.json();
-        
-        if (data.available) {
-          passkeyBtn.style.display = 'flex';
-          passkeyDivider.style.display = 'block';
-          
-          passkeyBtn.addEventListener('click', handleWebAuthnLogin);
-        }
-      } catch (err) {
-        if (DEBUG_MODE) console.error('WebAuthn init failed:', err);
-      }
-    }
-
-    // Handle WebAuthn login
-    async function handleWebAuthnLogin() {
-      try {
-        disableForm();
-        
-        const response = await fetch('/api/auth/webauthn/assertion', {
-          headers: { 'X-CSRF-Token': csrfToken }
-        });
-        const options = await response.json();
-        
-        const assertion = await navigator.credentials.get({
-          publicKey: options
-        });
-        
-        const verification = await fetch('/api/auth/webauthn/verify', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': csrfToken
-          },
-          body: JSON.stringify({
-            assertion,
-            fingerprint: deviceFingerprint.value,
-            trustDevice: trustDevice?.checked || false
-          })
-        });
-        
-        const result = await verification.json();
-        
-        if (result.success) {
-          if (DEBUG_MODE) console.log('✅ WebAuthn login successful');
-          showSuccess('Authentication successful', 'Redirecting...');
+        showWarning: function(title, message) {
+          DOM.warningTitle.textContent = title;
+          DOM.warningMessage.textContent = message;
+          DOM.warningAlert.style.display = 'flex';
           setTimeout(() => {
-            window.location.href = '/admin';
-          }, 500);
-        } else {
-          showError(result.error || 'Passkey verification failed');
-          enableForm();
-        }
-      } catch (err) {
-        if (DEBUG_MODE) console.error('WebAuthn error:', err);
-        showError('Passkey authentication failed');
-        enableForm();
-      }
-    }
+            DOM.warningAlert.style.display = 'none';
+          }, 5000);
+        },
 
-    // Start attempt countdown timer
-    function startAttemptTimer() {
-      updateAttemptDisplay();
-      
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-      }
-      
-      countdownInterval = setInterval(() => {
-        if (lockoutUntil) {
-          const now = Date.now();
-          if (now > lockoutUntil) {
-            lockoutUntil = null;
-            loginAttempts = 0;
-            hideAllAlerts();
-            enableForm();
-            updateAttemptDisplay();
+        showSuccess: function(title, message) {
+          DOM.successTitle.textContent = title;
+          DOM.successMessage.textContent = message;
+          DOM.successAlert.style.display = 'flex';
+          setTimeout(() => {
+            DOM.successAlert.style.display = 'none';
+          }, 3000);
+        },
+
+        showRateLimit: function(message, isLocked = false) {
+          if (isLocked) {
+            DOM.rateLimitMessage.textContent = message;
+            DOM.rateLimitAlert.style.display = 'flex';
+            DOM.rateLimitWarning.style.display = 'none';
           } else {
-            updateAttemptDisplay();
+            DOM.rateLimitWarningMessage.textContent = message;
+            DOM.rateLimitWarning.style.display = 'block';
+            DOM.rateLimitAlert.style.display = 'none';
           }
-        }
-      }, 1000);
-    }
+        },
 
-    // Update attempt display
-    function updateAttemptDisplay() {
-      if (lockoutUntil) {
-        const remaining = Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000));
-        const minutes = Math.floor(remaining / 60);
-        const seconds = remaining % 60;
-        
-        attemptCounter.textContent = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-        attemptCounter.style.background = 'rgba(239, 68, 68, 0.2)';
-        attemptCounter.style.color = '#fecaca';
-        attemptCounter.style.padding = '2px 8px';
-      } else {
-        const remaining = MAX_ATTEMPTS - loginAttempts;
-        attemptCounter.textContent = remaining;
-        attemptCounter.style.color = remaining <= 2 ? '#fbbf24' : '#aaa';
-        attemptCounter.style.background = 'rgba(100, 100, 100, 0.2)';
-        attemptCounter.style.padding = '2px 8px';
-      }
-    }
+        hideAllAlerts: function() {
+          DOM.errorAlert.style.display = 'none';
+          DOM.rateLimitAlert.style.display = 'none';
+          DOM.rateLimitWarning.style.display = 'none';
+          DOM.warningAlert.style.display = 'none';
+          DOM.successAlert.style.display = 'none';
+        },
 
-    // Toggle password visibility
-    togglePassword.addEventListener('click', () => {
-      const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-      passwordInput.setAttribute('type', type);
-      const icon = togglePassword.querySelector('i');
-      icon.className = type === 'password' ? 'fa-regular fa-eye' : 'fa-regular fa-eye-slash';
-    });
-
-    // Show functions
-    function showError(message) {
-      errorMessage.textContent = message;
-      errorAlert.style.display = 'flex';
-      
-      setTimeout(() => {
-        errorAlert.style.display = 'none';
-      }, 5000);
-    }
-
-    function showWarning(title, message) {
-      warningTitle.textContent = title;
-      warningMessage.textContent = message;
-      warningAlert.style.display = 'flex';
-      
-      setTimeout(() => {
-        warningAlert.style.display = 'none';
-      }, 5000);
-    }
-
-    function showSuccess(title, message) {
-      successTitle.textContent = title;
-      successMessage.textContent = message;
-      successAlert.style.display = 'flex';
-      
-      setTimeout(() => {
-        successAlert.style.display = 'none';
-      }, 3000);
-    }
-
-    function hideAllAlerts() {
-      errorAlert.style.display = 'none';
-      rateLimitAlert.style.display = 'none';
-      rateLimitWarning.style.display = 'none';
-      warningAlert.style.display = 'none';
-      successAlert.style.display = 'none';
-    }
-
-    // Show rate limit message
-    function showRateLimit(message, isLocked = false) {
-      if (isLocked) {
-        rateLimitMessage.textContent = message;
-        rateLimitAlert.style.display = 'flex';
-        rateLimitWarning.style.display = 'none';
-      } else {
-        rateLimitWarningMessage.textContent = message;
-        rateLimitWarning.style.display = 'block';
-        rateLimitAlert.style.display = 'none';
-      }
-    }
-
-    // Disable/Enable form
-    function disableForm(isLocked = false) {
-      usernameInput.disabled = true;
-      passwordInput.disabled = true;
-      if (mfaInput) mfaInput.disabled = true;
-      if (backupCodeInput) backupCodeInput.disabled = true;
-      loginBtn.disabled = true;
-      
-      if (isLocked) {
-        loginBtn.innerHTML = '<span class="loading-spinner"></span><span>Locked</span>';
-      } else {
-        loginBtn.innerHTML = '<span class="loading-spinner"></span><span>Verifying...</span>';
-      }
-    }
-
-    function enableForm() {
-      usernameInput.disabled = false;
-      passwordInput.disabled = false;
-      if (mfaInput) mfaInput.disabled = false;
-      if (backupCodeInput) backupCodeInput.disabled = false;
-      loginBtn.disabled = false;
-      loginBtn.innerHTML = '<span>Sign In</span><i class="fas fa-arrow-right"></i>';
-      passwordInput.focus();
-    }
-
-    // Show help dialog
-    function showHelp(event) {
-      event.preventDefault();
-      alert(
-        '🔐 Admin Access Help\n\n' +
-        '• Default username: admin\n' +
-        '• Password was set during installation\n' +
-        '• Check your .env file for ADMIN_PASSWORD_HASH\n' +
-        '• Two-factor authentication may be required\n' +
-        '• Passkey/FIDO2 sign-in is available on supported devices\n' +
-        '• Contact your system administrator for assistance\n\n' +
-        `Version: ${VERSION || '4.1.0'}`
-      );
-    }
-
-    // Show backup code input
-    function showBackupCodeInput() {
-      mfaGroup.style.display = 'none';
-      backupCodeLink.style.display = 'none';
-      backupCodeGroup.style.display = 'block';
-    }
-
-    // MFA Setup functions
-    function setupMFA() {
-      window.location.href = '/admin/setup-mfa';
-    }
-
-    function dismissMFASetup() {
-      mfaSetup.style.display = 'none';
-      localStorage.setItem('mfa_setup_dismissed', Date.now().toString());
-    }
-
-    // Activity monitoring
-    function setupActivityMonitoring() {
-      resetActivityTimer();
-      
-      ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
-        document.addEventListener(event, resetActivityTimer, { passive: true });
-      });
-    }
-
-    function resetActivityTimer() {
-      if (activityTimer) clearTimeout(activityTimer);
-      
-      if (!isActive) isActive = true;
-      
-      activityTimer = setTimeout(() => {
-        isActive = false;
-        showWarning('Inactivity Warning', 'Your session will expire due to inactivity');
-      }, 5 * 60 * 1000);
-    }
-
-    // Update session info
-    async function updateSessionInfo() {
-      try {
-        const response = await fetch('/api/auth/session-info', {
-          headers: { 'X-CSRF-Token': csrfToken }
-        });
-        const data = await response.json();
-        
-        if (data.authenticated) {
-          sessionInfo.style.display = 'flex';
-          sessionInfo.innerHTML = `
-            <span><i class="fas fa-user"></i> ${data.username}</span>
-            <span><i class="fas fa-clock"></i> Expires in ${data.expiresIn}</span>
-          `;
-        }
-      } catch (err) {
-        if (DEBUG_MODE) console.error('Failed to get session info:', err);
-      }
-    }
-
-    // Handle form submission
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      if (window.location.search) {
-        window.history.replaceState(null, null, window.location.pathname);
-      }
-      
-      if (lockoutUntil && Date.now() < lockoutUntil) {
-        const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
-        const minutes = Math.floor(remaining / 60);
-        const seconds = remaining % 60;
-        const timeString = minutes > 0 ? `${minutes} minute${minutes > 1 ? 's' : ''}` : `${seconds} second${seconds > 1 ? 's' : ''}`;
-        
-        showRateLimit(`Too many failed attempts. Please wait ${timeString}.`, true);
-        return;
-      }
-      
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value;
-      const mfaCode = mfaInput?.value;
-      const backupCode = backupCodeInput?.value;
-      
-      if (!username) {
-        showError('Please enter your username');
-        usernameInput.focus();
-        return;
-      }
-      
-      if (!password) {
-        showError('Please enter your password');
-        passwordInput.focus();
-        return;
-      }
-      
-      if (mfaGroup.style.display === 'block' && !mfaCode && !backupCode) {
-        showError('Please enter your authentication code');
-        if (mfaInput) mfaInput.focus();
-        return;
-      }
-      
-      if (!csrfToken) {
-        showError('Security token missing. Refreshing...');
-        setTimeout(() => window.location.reload(), 2000);
-        return;
-      }
-      
-      disableForm();
-      
-      try {
-        if (DEBUG_MODE) console.log('📤 Sending login request for user:', username);
-        
-        const body = {
-          username: username,
-          password: password,
-          _csrf: csrfToken,
-          remember: rememberMe.checked,
-          fingerprint: deviceFingerprint.value,
-          trustDevice: trustDevice?.checked || false
-        };
-        
-        if (mfaCode) {
-          body.mfaCode = mfaCode;
-        }
-        
-        if (backupCode) {
-          body.backupCode = backupCode.replace(/-/g, '');
-        }
-        
-        const response = await fetch('/admin/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': csrfToken,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(body),
-          credentials: 'include'
-        });
-        
-        let data;
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json();
-        } else {
-          const text = await response.text();
-          if (DEBUG_MODE) console.error('❌ Non-JSON response:', text.substring(0, 200));
-          throw new Error('Invalid server response format');
-        }
-        
-        if (response.ok && data.success) {
-          if (DEBUG_MODE) console.log('✅ Login successful, redirecting...');
+        disableForm: function(isLocked = false) {
+          DOM.username.disabled = true;
+          DOM.password.disabled = true;
+          if (DOM.mfaCode) DOM.mfaCode.disabled = true;
+          if (DOM.backupCode) DOM.backupCode.disabled = true;
+          DOM.loginBtn.disabled = true;
           
+          DOM.loginBtn.innerHTML = isLocked 
+            ? '<span class="loading-spinner"></span><span>Locked</span>'
+            : '<span class="loading-spinner"></span><span>Verifying...</span>';
+        },
+
+        enableForm: function() {
+          DOM.username.disabled = false;
+          DOM.password.disabled = false;
+          if (DOM.mfaCode) DOM.mfaCode.disabled = false;
+          if (DOM.backupCode) DOM.backupCode.disabled = false;
+          DOM.loginBtn.disabled = false;
+          DOM.loginBtn.innerHTML = '<span>Sign In</span><i class="fas fa-arrow-right"></i>';
+          DOM.password.focus();
+        },
+
+        updateStatusMessage: function(message) {
+          DOM.statusMessage.textContent = message;
+        },
+
+        formatTime: function(seconds) {
+          const mins = Math.floor(seconds / 60);
+          const secs = seconds % 60;
+          return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        }
+      };
+
+      // ============================================
+      // Security Functions
+      // ============================================
+      const Security = {
+        async generateDeviceFingerprint() {
+          const components = [
+            navigator.userAgent,
+            navigator.language,
+            screen.colorDepth,
+            screen.width + 'x' + screen.height,
+            new Date().getTimezoneOffset(),
+            navigator.hardwareConcurrency || 'unknown',
+            navigator.deviceMemory || 'unknown',
+            !!navigator.maxTouchPoints,
+            !!window.indexedDB,
+            !!window.localStorage,
+            !!window.sessionStorage,
+            await this.getCanvasFingerprint(),
+            await this.getWebGLFingerprint(),
+            await this.getAudioFingerprint()
+          ];
+          
+          const fingerprint = components.join('|||');
+          
+          if (window.crypto && window.crypto.subtle) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(fingerprint);
+            const hash = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hash))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join('')
+              .substring(0, 32);
+          }
+          
+          // Fallback
+          return btoa(fingerprint).substring(0, 32);
+        },
+
+        getCanvasFingerprint() {
+          return new Promise((resolve) => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = 200;
+              canvas.height = 50;
+              const ctx = canvas.getContext('2d');
+              ctx.textBaseline = 'top';
+              ctx.font = '14px Arial';
+              ctx.fillStyle = '#f60';
+              ctx.fillRect(0, 0, 100, 50);
+              ctx.fillStyle = '#069';
+              ctx.fillText('RedirectorPro', 2, 15);
+              resolve(canvas.toDataURL().substring(0, 50));
+            } catch {
+              resolve('canvas-unavailable');
+            }
+          });
+        },
+
+        getWebGLFingerprint() {
           try {
-            if (rememberMe.checked) {
-              localStorage.setItem('redirector_username', username);
-            } else {
-              localStorage.removeItem('redirector_username');
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            if (!gl) return 'webgl-unavailable';
+            
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            if (debugInfo) {
+              return gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || 'unknown';
+            }
+            return 'webgl-no-debug';
+          } catch {
+            return 'webgl-error';
+          }
+        },
+
+        getAudioFingerprint() {
+          return new Promise((resolve) => {
+            try {
+              const audioContext = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 44100, 44100);
+              const oscillator = audioContext.createOscillator();
+              oscillator.type = 'triangle';
+              oscillator.frequency.setValueAtTime(10000, audioContext.currentTime);
+              
+              const compressor = audioContext.createDynamicsCompressor();
+              compressor.threshold.setValueAtTime(-50, audioContext.currentTime);
+              compressor.knee.setValueAtTime(40, audioContext.currentTime);
+              compressor.ratio.setValueAtTime(12, audioContext.currentTime);
+              compressor.attack.setValueAtTime(0, audioContext.currentTime);
+              compressor.release.setValueAtTime(0.25, audioContext.currentTime);
+              
+              oscillator.connect(compressor);
+              compressor.connect(audioContext.destination);
+              oscillator.start(0);
+              
+              audioContext.startRendering().then(renderedBuffer => {
+                const audioData = renderedBuffer.getChannelData(0);
+                const hash = audioData.slice(0, 100).reduce((acc, val) => {
+                  return acc + Math.abs(val).toString(16);
+                }, '');
+                resolve(hash.substring(0, 20));
+              }).catch(() => resolve('audio-unavailable'));
+            } catch {
+              resolve('audio-unavailable');
+            }
+          });
+        },
+
+        async checkSecurityHeaders() {
+          try {
+            const response = await fetch(window.location.href, { method: 'HEAD' });
+            const headers = response.headers;
+            
+            const requiredHeaders = [
+              'content-security-policy',
+              'x-frame-options',
+              'x-content-type-options',
+              'x-xss-protection',
+              'referrer-policy'
+            ];
+            
+            const missing = requiredHeaders.filter(h => !headers.has(h));
+            
+            if (missing.length > 0 && document.querySelector('[data-admin-mode]')) {
+              Utils.showWarning('Security Warning', `Missing headers: ${missing.join(', ')}`);
             }
           } catch (err) {
-            if (DEBUG_MODE) console.error('Failed to save username:', err);
+            Utils.error('Failed to check security headers:', err);
+          }
+        }
+      };
+
+      // ============================================
+      // Rate Limiter
+      // ============================================
+      const RateLimiter = {
+        attempts: new Map(),
+        maxAttempts: CONFIG.maxAttempts,
+        baseDelay: 1000,
+
+        async checkLimit(identifier) {
+          const record = this.attempts.get(identifier) || {
+            count: 0,
+            lastAttempt: 0,
+            blockedUntil: 0
+          };
+          
+          if (record.blockedUntil > Date.now()) {
+            const waitTime = Math.ceil((record.blockedUntil - Date.now()) / 1000);
+            throw new Error(`Rate limited. Try again in ${Utils.formatTime(waitTime)}`);
           }
           
-          showSuccess('Authentication successful', 'Redirecting to dashboard...');
+          record.count++;
+          record.lastAttempt = Date.now();
           
-          setTimeout(() => {
-            window.location.href = '/admin';
-          }, 500);
-        } else if (data.requiresMFA) {
-          mfaRequired = true;
-          mfaGroup.style.display = 'block';
-          mfaBadge.style.display = 'flex';
-          mfaSessionId = data.sessionId;
-          
-          if (data.backupCodesAvailable) {
-            backupCodeLink.style.display = 'block';
+          if (record.count > this.maxAttempts) {
+            const backoffMinutes = Math.pow(2, record.count - this.maxAttempts);
+            record.blockedUntil = Date.now() + (backoffMinutes * 60 * 1000);
+            record.count = 0;
           }
           
-          showWarning('MFA Required', 'Please enter your two-factor authentication code');
-          enableForm();
-          if (mfaInput) mfaInput.focus();
+          this.attempts.set(identifier, record);
+          return true;
+        },
+
+        getRemainingAttempts(identifier) {
+          const record = this.attempts.get(identifier);
+          if (!record) return this.maxAttempts;
+          if (record.blockedUntil > Date.now()) return 0;
+          return Math.max(0, this.maxAttempts - record.count);
+        }
+      };
+
+      // ============================================
+      // Password Strength Checker
+      // ============================================
+      const PasswordStrength = {
+        check(password) {
+          let score = 0;
+          const feedback = [];
+          const checks = [];
           
-        } else {
-          loginAttempts++;
-          if (DEBUG_MODE) console.log(`❌ Login failed. Attempt ${loginAttempts}/${MAX_ATTEMPTS}`);
+          if (password.length >= 8) { score += 25; checks.push({ pass: true, text: 'At least 8 characters' }); }
+          else { feedback.push('At least 8 characters'); checks.push({ pass: false, text: 'At least 8 characters' }); }
           
-          updateAttemptDisplay();
+          if (/[A-Z]/.test(password)) { score += 25; checks.push({ pass: true, text: 'Contains uppercase' }); }
+          else { feedback.push('Include uppercase letters'); checks.push({ pass: false, text: 'Contains uppercase' }); }
           
-          if (loginAttempts >= MAX_ATTEMPTS) {
-            lockoutUntil = Date.now() + LOCKOUT_TIME;
-            showRateLimit(`Account locked for 5 minutes due to too many failed attempts.`, true);
-            disableForm(true);
-            if (DEBUG_MODE) console.warn(`🔒 Account locked until ${new Date(lockoutUntil).toISOString()}`);
+          if (/[a-z]/.test(password)) { score += 25; checks.push({ pass: true, text: 'Contains lowercase' }); }
+          else { feedback.push('Include lowercase letters'); checks.push({ pass: false, text: 'Contains lowercase' }); }
+          
+          if (/[0-9]/.test(password)) { score += 15; checks.push({ pass: true, text: 'Contains numbers' }); }
+          else { feedback.push('Include numbers'); checks.push({ pass: false, text: 'Contains numbers' }); }
+          
+          if (/[^A-Za-z0-9]/.test(password)) { score += 10; checks.push({ pass: true, text: 'Contains special chars' }); }
+          else { feedback.push('Include special characters'); checks.push({ pass: false, text: 'Contains special chars' }); }
+          
+          return { score, feedback, checks };
+        },
+
+        updateMeter(password) {
+          if (!password) {
+            DOM.strengthMeter.style.display = 'none';
+            return;
+          }
+          
+          DOM.strengthMeter.style.display = 'block';
+          const result = this.check(password);
+          
+          // Update strength bar
+          DOM.strengthFill.style.width = result.score + '%';
+          
+          // Color based on score
+          if (result.score < 30) DOM.strengthFill.style.backgroundColor = '#ef4444';
+          else if (result.score < 60) DOM.strengthFill.style.backgroundColor = '#f59e0b';
+          else if (result.score < 80) DOM.strengthFill.style.backgroundColor = '#3b82f6';
+          else DOM.strengthFill.style.backgroundColor = '#10b981';
+          
+          DOM.strengthScore.textContent = result.score + '/100';
+          
+          // Update feedback
+          DOM.strengthFeedback.innerHTML = result.checks.map(check => `
+            <li class="${check.pass ? 'valid' : 'invalid'}">
+              <i class="fas fa-${check.pass ? 'check-circle' : 'times-circle'}"></i>
+              ${check.text}
+            </li>
+          `).join('');
+        }
+      };
+
+      // ============================================
+      // Theme Management
+      // ============================================
+      const Theme = {
+        init() {
+          this.setTheme(State.theme);
+          DOM.themeToggle.addEventListener('click', () => this.toggle());
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+              this.setTheme(e.matches ? 'dark' : 'light');
+            }
+          });
+        },
+
+        setTheme(theme) {
+          if (theme === 'dark') {
+            document.body.classList.remove('light-mode');
+            DOM.themeIcon.className = 'fas fa-moon';
           } else {
-            const remaining = MAX_ATTEMPTS - loginAttempts;
-            showError(data.error || 'Invalid username or password');
+            document.body.classList.add('light-mode');
+            DOM.themeIcon.className = 'fas fa-sun';
+          }
+          State.theme = theme;
+          localStorage.setItem('theme', theme);
+        },
+
+        toggle() {
+          this.setTheme(State.theme === 'dark' ? 'light' : 'dark');
+        }
+      };
+
+      // ============================================
+      // WebAuthn / Biometric Support
+      // ============================================
+      const WebAuthn = {
+        async checkSupport() {
+          if (!CONFIG.webauthnEnabled || !window.PublicKeyCredential) {
+            return false;
+          }
+          
+          try {
+            const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+            if (available) {
+              DOM.biometricIndicator.style.display = 'inline-flex';
+            }
+            return available;
+          } catch {
+            return false;
+          }
+        },
+
+        async login() {
+          try {
+            Utils.disableForm();
             
-            if (remaining <= 2) {
-              showRateLimit(`${remaining} attempt${remaining > 1 ? 's' : ''} remaining before lockout`, false);
+            const response = await fetch('/api/auth/webauthn/assertion', {
+              headers: { 'X-CSRF-Token': State.csrfToken }
+            });
+            const options = await response.json();
+            
+            const assertion = await navigator.credentials.get({
+              publicKey: options
+            });
+            
+            const verification = await fetch('/api/auth/webauthn/verify', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': State.csrfToken
+              },
+              body: JSON.stringify({
+                assertion,
+                fingerprint: State.deviceFingerprint,
+                trustDevice: DOM.trustDevice?.checked || false
+              })
+            });
+            
+            const result = await verification.json();
+            
+            if (result.success) {
+              Utils.showSuccess('Authentication successful', 'Redirecting...');
+              setTimeout(() => {
+                window.location.href = '/admin';
+              }, 500);
+            } else {
+              Utils.showError(result.error || 'Passkey verification failed');
+              Utils.enableForm();
+            }
+          } catch (err) {
+            Utils.error('WebAuthn error:', err);
+            Utils.showError('Passkey authentication failed');
+            Utils.enableForm();
+          }
+        }
+      };
+
+      // ============================================
+      // Session Management
+      // ============================================
+      const SessionManager = {
+        async loadActiveSessions() {
+          try {
+            const response = await fetch('/api/auth/sessions', {
+              headers: { 'X-CSRF-Token': State.csrfToken }
+            });
+            const sessions = await response.json();
+            
+            if (sessions.length > 1) {
+              DOM.sessionList.innerHTML = sessions
+                .filter(s => !s.current)
+                .map(s => `
+                  <div class="session-item">
+                    <i class="fas fa-${s.deviceType === 'mobile' ? 'mobile-alt' : 'desktop'}"></i>
+                    <span>${s.deviceName || 'Unknown device'}</span>
+                    <span class="session-time">${s.lastActive || 'Just now'}</span>
+                    <button onclick="window.terminateSession('${s.id}')" class="btn-icon" title="Terminate session">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                `).join('');
+              
+              DOM.sessionManagement.style.display = 'block';
+            }
+          } catch (err) {
+            Utils.error('Failed to load sessions:', err);
+          }
+        },
+
+        async terminateSession(sessionId) {
+          try {
+            await fetch('/api/auth/sessions/terminate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': State.csrfToken
+              },
+              body: JSON.stringify({ sessionId })
+            });
+            await this.loadActiveSessions();
+          } catch (err) {
+            Utils.error('Failed to terminate session:', err);
+          }
+        },
+
+        async terminateOtherSessions() {
+          try {
+            await fetch('/api/auth/sessions/terminate-others', {
+              method: 'POST',
+              headers: { 'X-CSRF-Token': State.csrfToken }
+            });
+            await this.loadActiveSessions();
+            Utils.showSuccess('Success', 'Other sessions terminated');
+          } catch (err) {
+            Utils.error('Failed to terminate sessions:', err);
+          }
+        }
+      };
+
+      // ============================================
+      // Activity Monitor
+      // ============================================
+      const ActivityMonitor = {
+        timer: null,
+        timeout: 5 * 60 * 1000, // 5 minutes
+
+        init() {
+          this.reset();
+          ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+            document.addEventListener(event, () => this.reset(), { passive: true });
+          });
+        },
+
+        reset() {
+          if (this.timer) clearTimeout(this.timer);
+          if (!State.isActive) State.isActive = true;
+          
+          this.timer = setTimeout(() => {
+            State.isActive = false;
+            Utils.showWarning('Inactivity Warning', 'Your session will expire due to inactivity');
+          }, this.timeout);
+        }
+      };
+
+      // ============================================
+      // URL Cleanup
+      // ============================================
+      const URLManager = {
+        init() {
+          if (window.location.search || window.location.hash) {
+            Utils.log('Cleaning URL parameters...');
+            
+            if (DOM.infoBanner) {
+              DOM.infoMessage.textContent = 'Removed login parameters from URL for security';
+              DOM.infoBanner.style.display = 'flex';
+              setTimeout(() => {
+                DOM.infoBanner.style.display = 'none';
+              }, 5000);
             }
             
-            enableForm();
+            const cleanUrl = window.location.protocol + '//' + 
+                            window.location.host + 
+                            window.location.pathname;
             
-            loginForm.style.animation = 'none';
-            loginForm.offsetHeight;
-            loginForm.style.animation = 'shake 0.5s ease';
-            
-            passwordInput.value = '';
-            if (mfaInput) mfaInput.value = '';
-            if (backupCodeInput) backupCodeInput.value = '';
+            window.history.replaceState(null, null, cleanUrl);
           }
+          
+          // Monitor for URL changes
+          let lastUrl = location.href;
+          new MutationObserver(() => {
+            const url = location.href;
+            if (url !== lastUrl) {
+              lastUrl = url;
+              if (location.search || location.hash) {
+                history.replaceState(null, null, location.pathname);
+              }
+            }
+          }).observe(document, {subtree: true, childList: true});
         }
-      } catch (err) {
-        console.error('❌ Login error:', err);
-        showError('Connection error. Please check your network and try again.');
-        enableForm();
-      }
-    });
+      };
 
-    // Input validation
-    usernameInput.addEventListener('input', () => {
-      hideAllAlerts();
-    });
-    
-    passwordInput.addEventListener('input', () => {
-      hideAllAlerts();
-    });
-    
-    if (mfaInput) {
-      mfaInput.addEventListener('input', () => {
-        if (mfaInput.value.length === 6) {
-          // Auto-submit when 6 digits entered
-          loginForm.dispatchEvent(new Event('submit'));
-        }
-      });
-    }
-    
-    usernameInput.addEventListener('invalid', (e) => {
-      e.preventDefault();
-      showError('Please enter your username');
-    });
-    
-    passwordInput.addEventListener('invalid', (e) => {
-      e.preventDefault();
-      showError('Please enter your password');
-    });
-
-    // Handle Enter key
-    loginForm.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !loginBtn.disabled) {
+      // ============================================
+      // Form Submission
+      // ============================================
+      async function handleSubmit(e) {
         e.preventDefault();
-        loginForm.dispatchEvent(new Event('submit'));
-      }
-    });
-
-    // Handle back/forward cache
-    window.addEventListener('pageshow', (event) => {
-      if (event.persisted) {
-        if (DEBUG_MODE) console.log('📱 Page loaded from back/forward cache, reloading...');
-        window.location.reload();
-      }
-    });
-
-    // Prevent form resubmission
-    if (window.history.replaceState) {
-      window.history.replaceState(null, null, window.location.href);
-    }
-
-    // Clean up on unload
-    window.addEventListener('beforeunload', () => {
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-      }
-      if (activityTimer) {
-        clearTimeout(activityTimer);
-      }
-    });
-
-    // Monitor URL for changes
-    let lastUrl = location.href;
-    new MutationObserver(() => {
-      const url = location.href;
-      if (url !== lastUrl) {
-        lastUrl = url;
-        if (location.search || location.hash) {
-          if (DEBUG_MODE) console.log('🧹 URL changed, cleaning parameters...');
-          const cleanUrl = location.protocol + '//' + 
-                          location.host + 
-                          location.pathname;
-          history.replaceState(null, null, cleanUrl);
+        e.stopPropagation();
+        
+        URLManager.init();
+        
+        // Check lockout
+        if (State.lockoutUntil && Date.now() < State.lockoutUntil) {
+          const remaining = Math.ceil((State.lockoutUntil - Date.now()) / 1000);
+          Utils.showRateLimit(`Too many failed attempts. Please wait ${Utils.formatTime(remaining)}.`, true);
+          return;
+        }
+        
+        // Validate inputs
+        const username = DOM.username.value.trim();
+        const password = DOM.password.value;
+        const mfaCode = DOM.mfaCode?.value;
+        const backupCode = DOM.backupCode?.value;
+        
+        if (!username) {
+          Utils.showError('Please enter your username');
+          DOM.username.focus();
+          return;
+        }
+        
+        if (!password) {
+          Utils.showError('Please enter your password');
+          DOM.password.focus();
+          return;
+        }
+        
+        if (DOM.mfaGroup.style.display === 'block' && !mfaCode && !backupCode) {
+          Utils.showError('Please enter your authentication code');
+          DOM.mfaCode?.focus();
+          return;
+        }
+        
+        if (!State.csrfToken) {
+          Utils.showError('Security token missing. Refreshing...');
+          setTimeout(() => window.location.reload(), 2000);
+          return;
+        }
+        
+        // Check rate limit
+        try {
+          await RateLimiter.checkLimit(username);
+        } catch (err) {
+          Utils.showRateLimit(err.message, true);
+          return;
+        }
+        
+        Utils.disableForm();
+        
+        try {
+          const body = {
+            username,
+            password,
+            _csrf: State.csrfToken,
+            remember: DOM.rememberMe.checked,
+            fingerprint: State.deviceFingerprint,
+            trustDevice: DOM.trustDevice?.checked || false
+          };
+          
+          if (mfaCode) body.mfaCode = mfaCode;
+          if (backupCode) body.backupCode = backupCode.replace(/-/g, '');
+          
+          const response = await fetch('/admin/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': State.csrfToken,
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(body),
+            credentials: 'include'
+          });
+          
+          let data;
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            const text = await response.text();
+            Utils.error('Non-JSON response:', text.substring(0, 200));
+            throw new Error('Invalid server response format');
+          }
+          
+          if (response.ok && data.success) {
+            Utils.log('Login successful');
+            
+            try {
+              if (DOM.rememberMe.checked) {
+                localStorage.setItem('redirector_username', username);
+              } else {
+                localStorage.removeItem('redirector_username');
+              }
+            } catch (err) {
+              Utils.error('Failed to save username:', err);
+            }
+            
+            Utils.showSuccess('Authentication successful', 'Redirecting to dashboard...');
+            
+            setTimeout(() => {
+              window.location.href = '/admin';
+            }, 500);
+            
+          } else if (data.requiresMFA) {
+            State.mfaRequired = true;
+            DOM.mfaGroup.style.display = 'block';
+            DOM.mfaBadge.style.display = 'flex';
+            State.mfaSessionId = data.sessionId;
+            
+            if (data.backupCodesAvailable) {
+              DOM.backupCodeLink.style.display = 'block';
+            }
+            
+            Utils.showWarning('MFA Required', 'Please enter your two-factor authentication code');
+            Utils.enableForm();
+            DOM.mfaCode?.focus();
+            
+          } else {
+            State.loginAttempts++;
+            Utils.log(`Login failed. Attempt ${State.loginAttempts}/${CONFIG.maxAttempts}`);
+            
+            updateAttemptDisplay();
+            
+            if (State.loginAttempts >= CONFIG.maxAttempts) {
+              State.lockoutUntil = Date.now() + CONFIG.blockDuration;
+              Utils.showRateLimit(`Account locked for ${Utils.formatTime(CONFIG.blockDuration/1000)} due to too many failed attempts.`, true);
+              Utils.disableForm(true);
+            } else {
+              const remaining = CONFIG.maxAttempts - State.loginAttempts;
+              Utils.showError(data.error || 'Invalid username or password');
+              
+              if (remaining <= 2) {
+                Utils.showRateLimit(`${remaining} attempt${remaining > 1 ? 's' : ''} remaining before lockout`, false);
+              }
+              
+              Utils.enableForm();
+              DOM.password.value = '';
+              if (DOM.mfaCode) DOM.mfaCode.value = '';
+              if (DOM.backupCode) DOM.backupCode.value = '';
+            }
+          }
+        } catch (err) {
+          Utils.error('Login error:', err);
+          Utils.showError('Connection error. Please check your network and try again.');
+          Utils.enableForm();
         }
       }
-    }).observe(document, {subtree: true, childList: true});
 
-    // iOS/Safari fix
-    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-      document.addEventListener('touchstart', () => {
-        if (window.location.search) {
-          history.replaceState(null, null, window.location.pathname);
+      // ============================================
+      // Helper Functions
+      // ============================================
+      function updateAttemptDisplay() {
+        if (State.lockoutUntil) {
+          const remaining = Math.max(0, Math.ceil((State.lockoutUntil - Date.now()) / 1000));
+          DOM.attemptCounter.textContent = Utils.formatTime(remaining);
+          DOM.attemptCounter.style.background = 'rgba(239, 68, 68, 0.2)';
+          DOM.attemptCounter.style.color = '#fecaca';
+        } else {
+          const remaining = CONFIG.maxAttempts - State.loginAttempts;
+          DOM.attemptCounter.textContent = remaining;
+          DOM.attemptCounter.style.color = remaining <= 2 ? '#fbbf24' : 'inherit';
+          DOM.attemptCounter.style.background = 'rgba(128,128,128,0.1)';
         }
-      }, { passive: true });
-    }
-
-    // Handle orientation change
-    window.addEventListener('orientationchange', () => {
-      setTimeout(() => {
-        document.body.style.height = window.innerHeight + 'px';
-      }, 100);
-    });
-
-    // Handle resize events for mobile keyboard
-    window.addEventListener('resize', () => {
-      if (window.innerHeight < 500) {
-        document.querySelector('.form-side').style.overflowY = 'auto';
       }
-    });
 
-    // Error message mapping
-    const errorMessages = {
-      'INVALID_CREDENTIALS': 'The username or password you entered is incorrect',
-      'ACCOUNT_LOCKED': 'Your account has been temporarily locked due to too many failed attempts',
-      'MFA_REQUIRED': 'Two-factor authentication code required',
-      'INVALID_MFA': 'The authentication code you entered is invalid',
-      'INVALID_BACKUP_CODE': 'The backup code you entered is invalid or has been used',
-      'BACKUP_CODE_USED': 'This backup code has already been used',
-      'SESSION_EXPIRED': 'Your session has expired. Please log in again',
-      'DEVICE_NOT_TRUSTED': 'This device is not recognized. Please verify your identity',
-      'IP_BLOCKED': 'Access from this IP address has been blocked',
-      'RATE_LIMIT': 'Too many login attempts. Please try again later',
-      'CSRF_ERROR': 'Security validation failed. Please refresh the page',
-      'MFA_SETUP_REQUIRED': 'Please set up two-factor authentication first',
-      'WEBAUTHN_ERROR': 'Passkey authentication failed. Please try again'
-    };
+      function showHelp(event) {
+        event.preventDefault();
+        alert(
+          '🔐 Admin Access Help\n\n' +
+          '• Default username: admin\n' +
+          '• Password was set during installation\n' +
+          '• Check your .env file for ADMIN_PASSWORD_HASH\n' +
+          '• Two-factor authentication may be required\n' +
+          '• Passkey/FIDO2 sign-in is available on supported devices\n' +
+          '• Contact your system administrator for assistance\n\n' +
+          `Version: ${CONFIG.version}`
+        );
+      }
 
-    window.getErrorMessage = function(code) {
-      return errorMessages[code] || 'An error occurred. Please try again';
-    };
+      function showBackupCodeInput() {
+        DOM.mfaGroup.style.display = 'none';
+        DOM.backupCodeLink.style.display = 'none';
+        DOM.backupCodeGroup.style.display = 'block';
+      }
+
+      function setupMFA() {
+        window.location.href = '/admin/setup-mfa';
+      }
+
+      function dismissMFASetup() {
+        DOM.mfaSetup.style.display = 'none';
+        localStorage.setItem('mfa_setup_dismissed', Date.now().toString());
+      }
+
+      // ============================================
+      // Initialize Application
+      // ============================================
+      async function initialize() {
+        Utils.log('Initializing login page...');
+        
+        // Set CSRF token
+        if (DOM.csrfToken.value) {
+          State.csrfToken = DOM.csrfToken.value;
+        }
+        
+        if (!State.csrfToken) {
+          Utils.error('CSRF token not found');
+          Utils.showError('Security token missing. Please refresh the page.');
+          setTimeout(() => window.location.reload(), 2000);
+          return;
+        }
+        
+        // Set default username
+        if (CONFIG.adminUsername && CONFIG.adminUsername !== '""') {
+          DOM.username.value = CONFIG.adminUsername;
+        }
+        
+        // Load saved username
+        try {
+          const savedUsername = localStorage.getItem('redirector_username');
+          if (savedUsername) {
+            DOM.username.value = savedUsername;
+            DOM.rememberMe.checked = true;
+          }
+        } catch (err) {
+          Utils.error('Failed to load saved data:', err);
+        }
+        
+        // Generate device fingerprint
+        State.deviceFingerprint = await Security.generateDeviceFingerprint();
+        DOM.deviceFingerprint.value = State.deviceFingerprint;
+        Utils.log('Device fingerprint generated');
+        
+        // Check MFA setup dismissal
+        try {
+          const mfaDismissed = localStorage.getItem('mfa_setup_dismissed');
+          if (mfaDismissed) {
+            const dismissedTime = parseInt(mfaDismissed);
+            const oneWeek = 7 * 24 * 60 * 60 * 1000;
+            if (Date.now() - dismissedTime < oneWeek) {
+              DOM.mfaSetup.style.display = 'none';
+            }
+          }
+        } catch (err) {
+          Utils.error('Failed to check MFA dismissal:', err);
+        }
+        
+        // Initialize features
+        Theme.init();
+        ActivityMonitor.init();
+        URLManager.init();
+        
+        // Check biometric support
+        const biometricSupported = await WebAuthn.checkSupport();
+        if (biometricSupported) {
+          DOM.passkeyBtn.style.display = 'flex';
+          DOM.passkeyDivider.style.display = 'block';
+          DOM.passkeyBtn.addEventListener('click', () => WebAuthn.login());
+        }
+        
+        // Check security headers (admin only)
+        if (document.querySelector('[data-admin-mode]')) {
+          Security.checkSecurityHeaders();
+        }
+        
+        // Load active sessions if authenticated
+        setTimeout(async () => {
+          if (document.cookie.includes('redirector.sid')) {
+            await SessionManager.loadActiveSessions();
+          }
+        }, 1000);
+        
+        // Setup event listeners
+        DOM.loginForm.addEventListener('submit', handleSubmit);
+        
+        DOM.togglePassword.addEventListener('click', () => {
+          const type = DOM.password.getAttribute('type') === 'password' ? 'text' : 'password';
+          DOM.password.setAttribute('type', type);
+          const icon = DOM.togglePassword.querySelector('i');
+          icon.className = type === 'password' ? 'fa-regular fa-eye' : 'fa-regular fa-eye-slash';
+          DOM.togglePassword.setAttribute('aria-pressed', type !== 'password');
+        });
+        
+        // Password strength meter
+        DOM.password.addEventListener('input', (e) => {
+          PasswordStrength.updateMeter(e.target.value);
+        });
+        
+        // Input validation
+        DOM.username.addEventListener('input', () => Utils.hideAllAlerts());
+        DOM.password.addEventListener('input', () => Utils.hideAllAlerts());
+        
+        if (DOM.mfaCode) {
+          DOM.mfaCode.addEventListener('input', () => {
+            if (DOM.mfaCode.value.length === 6) {
+              DOM.loginForm.dispatchEvent(new Event('submit'));
+            }
+          });
+        }
+        
+        // Handle Enter key
+        DOM.loginForm.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter' && !DOM.loginBtn.disabled) {
+            e.preventDefault();
+            DOM.loginForm.dispatchEvent(new Event('submit'));
+          }
+        });
+        
+        // Handle back/forward cache
+        window.addEventListener('pageshow', (event) => {
+          if (event.persisted) {
+            Utils.log('Page loaded from back/forward cache, reloading...');
+            window.location.reload();
+          }
+        });
+        
+        // Clean up on unload
+        window.addEventListener('beforeunload', () => {
+          if (ActivityMonitor.timer) {
+            clearTimeout(ActivityMonitor.timer);
+          }
+        });
+        
+        // iOS/Safari fix
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+          document.addEventListener('touchstart', () => {
+            if (window.location.search) {
+              history.replaceState(null, null, window.location.pathname);
+            }
+          }, { passive: true });
+        }
+        
+        // Handle orientation change
+        window.addEventListener('orientationchange', () => {
+          setTimeout(() => {
+            document.body.style.height = window.innerHeight + 'px';
+          }, 100);
+        });
+        
+        // Handle resize for mobile keyboard
+        window.addEventListener('resize', () => {
+          if (window.innerHeight < 500) {
+            document.querySelector('.form-side').style.overflowY = 'auto';
+          }
+        });
+        
+        // Start attempt timer
+        setInterval(updateAttemptDisplay, 1000);
+        
+        Utils.log('Login page initialized successfully');
+      }
+
+      // Expose functions to global scope
+      window.showHelp = showHelp;
+      window.showBackupCodeInput = showBackupCodeInput;
+      window.setupMFA = setupMFA;
+      window.dismissMFASetup = dismissMFASetup;
+      window.terminateSession = (id) => SessionManager.terminateSession(id);
+      window.terminateOtherSessions = () => SessionManager.terminateOtherSessions();
+
+      // Start initialization when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize);
+      } else {
+        initialize();
+      }
+    })();
   </script>
 </body>
 </html>
