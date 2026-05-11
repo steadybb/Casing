@@ -265,6 +265,20 @@
     "gc:status": "node -e \"console.log('GC Available:', typeof global.gc !== 'undefined' ? '✅ Yes' : '❌ No (run with --expose-gc)')\"",
     "gc:trigger": "node scripts/trigger-gc.js",
     "gc:stats:live": "node scripts/live-gc-stats.js"
+  
+    "verify": "node scripts/verify-installation.js",
+    "verify:compression": "node tests/verify-compression-fix.js",
+    "verify:memory": "node tests/verify-memory-fix.js",
+    "verify:graceful-shutdown": "node tests/verify-graceful-shutdown.js",
+    "verify:core-fixes": "npm run verify:compression && npm run verify:memory && npm run verify:graceful-shutdown",
+    
+    "preflight": "npm run lint && npm run test:ci && npm run security:audit && npm run verify:core-fixes",
+    "ready-for-prod": "npm run preflight && npm run baseline && npm run health",
+    
+    "baseline": "node tests/baseline.js",
+    "baseline:compression": "node tests/baseline-compression.js",
+    "baseline:memory": "node tests/baseline-memory.js",
+    "baseline:response-time": "node tests/baseline-response-time.js"
   },
   "keywords": [
     "redirect", 
