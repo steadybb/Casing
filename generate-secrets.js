@@ -5,7 +5,7 @@
  * 
  * Enhanced with support for:
  * - Encryption key rotation
- * - Request signing secrets
+ * - Request signing secrets (REQUEST_SIGNING_SECRET)
  * - API versioning keys
  * - Database transaction settings
  * - Bull queue authentication
@@ -182,7 +182,7 @@ ${colors.bright}Generated Secrets:${colors.reset}
   │ WEBHOOK_SECRET          │ Webhook signing                 │
   │ CSRF_SECRET             │ CSRF protection                 │
   │ OTP_SECRET              │ 2FA/MFA secret                  │
-  │ REQUEST_SIGNING_KEY     │ Request signature verification  │
+  │ REQUEST_SIGNING_SECRET  │ Request signature verification  │
   │ QUEUE_AUTH_TOKEN        │ Bull Queue authentication       │
   │ BACKUP_CODES            │ Recovery codes (10)             │
   │ WEBAUTHN_ID             │ WebAuthn relying party ID       │
@@ -259,7 +259,7 @@ function generateBackupCodes(count = 10) {
   return codes;
 }
 
-function generateRequestSigningKey() {
+function generateRequestSigningSecret() {
   return crypto.randomBytes(32).toString('hex');
 }
 
@@ -516,8 +516,8 @@ function validateEnvFile(env) {
     warnings.push('JWT_SECRET should be at least 64 characters for security');
   }
   
-  if (env.REQUEST_SIGNING_KEY && env.REQUEST_SIGNING_KEY.length < 32) {
-    warnings.push('REQUEST_SIGNING_KEY should be at least 32 characters');
+  if (env.REQUEST_SIGNING_SECRET && env.REQUEST_SIGNING_SECRET.length < 32) {
+    warnings.push('REQUEST_SIGNING_SECRET should be at least 32 characters');
   }
   
   if (env.ENCRYPTION_KEY_ROTATION_DAYS && 
@@ -549,12 +549,6 @@ function validateEnvFile(env) {
     warnings.push('REDIS_URL should start with redis:// or rediss://');
   }
   
-  if (env.ENCRYPTION_KEY_ROTATION_INTERVAL && 
-      !['daily', 'weekly', 'monthly', 'quarterly'].includes(env.ENCRYPTION_KEY_ROTATION_INTERVAL)) {
-    warnings.push('ENCRYPTION_KEY_ROTATION_INTERVAL should be daily, weekly, monthly, or quarterly');
-  }
-  
-  // New validation rules
   if (env.MFA_ENABLED === 'true' && !env.OTP_SECRET) {
     errors.push('MFA enabled but OTP_SECRET is missing');
   }
@@ -651,8 +645,8 @@ function auditSecrets(env) {
   }
   
   // Check request signing
-  if (!env.REQUEST_SIGNING_KEY) {
-    audit.recommendations.push('Generate a REQUEST_SIGNING_KEY for API request verification');
+  if (!env.REQUEST_SIGNING_SECRET) {
+    audit.recommendations.push('Generate a REQUEST_SIGNING_SECRET for API request verification');
   }
   
   // Check CSRF protection
@@ -765,16 +759,6 @@ function auditSecrets(env) {
     }
   }
   
-  // Check for request signing
-  if (env.REQUEST_SIGNING_KEY && env.REQUEST_SIGNING_KEY.length < 32) {
-    audit.checks.push({
-      name: 'Request Signing Key',
-      status: 'FAIL',
-      message: 'Request signing key should be at least 32 characters'
-    });
-    audit.overall = 'FAIL';
-  }
-  
   return audit;
 }
 
@@ -794,7 +778,7 @@ function writeEnvFile(env, filePath = ENV_FILE, force = false) {
       'BACKUP_CODES'
     ],
     'REQUEST SIGNING & API SECURITY': [
-      'REQUEST_SIGNING_KEY',
+      'REQUEST_SIGNING_SECRET',
       'REQUEST_SIGNING_EXPIRY',
       'API_VERSION_STRICT',
       'DEFAULT_API_VERSION',
@@ -1049,7 +1033,7 @@ function writeEnvFile(env, filePath = ENV_FILE, force = false) {
   };
 
   let content = `# ============================================================================
-# REDIRECTOR PRO v4.1.0 - ENTERPRISE EDITION CONFIGURATION
+# REDIRECTOR PRO v4.3.0 - ENTERPRISE EDITION CONFIGURATION
 # ============================================================================
 # Generated: ${new Date().toISOString()}
 # Host: ${os.hostname()}
@@ -1115,7 +1099,7 @@ function writeEnvFile(env, filePath = ENV_FILE, force = false) {
 
 function createEnvExample() {
   const example = `# ============================================================================
-# REDIRECTOR PRO v4.1.0 - ENTERPRISE EDITION - ENVIRONMENT EXAMPLE
+# REDIRECTOR PRO v4.3.0 - ENTERPRISE EDITION - ENVIRONMENT EXAMPLE
 # ============================================================================
 # Copy this file to .env and fill in your values
 # Run 'node generate-secrets.js --write' to generate secure values
@@ -1135,7 +1119,7 @@ OTP_SECRET=your-otp-secret-here
 BACKUP_CODES=xxxx-xxxx-xxxx-xxxx,xxxx-xxxx-xxxx-xxxx,xxxx-xxxx-xxxx-xxxx
 
 # ─── REQUEST SIGNING & API SECURITY ───────────────────────────────────────
-REQUEST_SIGNING_KEY=your-32-byte-signing-key
+REQUEST_SIGNING_SECRET=your-32-byte-signing-key
 REQUEST_SIGNING_EXPIRY=300000
 API_VERSION_STRICT=false
 DEFAULT_API_VERSION=v1
@@ -1545,7 +1529,7 @@ function generateKubernetesSecrets(env, secrets) {
       namespace: 'default',
       labels: {
         app: 'redirector-pro',
-        version: '4.1.0'
+        version: '4.3.0'
       },
       annotations: {
         'generated-at': new Date().toISOString()
@@ -1559,7 +1543,7 @@ function generateKubernetesSecrets(env, secrets) {
   const secretKeys = [
     'SESSION_SECRET', 'METRICS_API_KEY', 'JWT_SECRET', 'ENCRYPTION_KEY',
     'API_KEY', 'WEBHOOK_SECRET', 'CSRF_SECRET', 'OTP_SECRET',
-    'REQUEST_SIGNING_KEY', 'QUEUE_AUTH_TOKEN', 'DB_PASSWORD', 'REDIS_PASSWORD',
+    'REQUEST_SIGNING_SECRET', 'QUEUE_AUTH_TOKEN', 'DB_PASSWORD', 'REDIS_PASSWORD',
     'SMTP_PASS', 'IPINFO_TOKEN', 'WEBAUTHN_ID', 'MFA_ENCRYPTION_KEY',
     'SESSION_ENCRYPTION_KEY', 'DEVICE_FINGERPRINT_KEY', 'RATE_LIMITING_KEY',
     'AUDIT_LOG_KEY', 'METRICS_AGGREGATOR_KEY', 'TRANSACTION_MONITOR_KEY',
@@ -1597,7 +1581,7 @@ function generateAWSSecrets(env, secrets) {
     'redirector-pro/webhook': env.WEBHOOK_SECRET,
     'redirector-pro/csrf': env.CSRF_SECRET,
     'redirector-pro/otp': env.OTP_SECRET,
-    'redirector-pro/signing': env.REQUEST_SIGNING_KEY,
+    'redirector-pro/signing': env.REQUEST_SIGNING_SECRET,
     'redirector-pro/queue': env.QUEUE_AUTH_TOKEN,
     'redirector-pro/db-password': env.DB_PASSWORD,
     'redirector-pro/redis-password': env.REDIS_PASSWORD,
@@ -1630,7 +1614,7 @@ function generateGCPSecrets(env, secrets) {
     WEBHOOK_SECRET: env.WEBHOOK_SECRET,
     CSRF_SECRET: env.CSRF_SECRET,
     OTP_SECRET: env.OTP_SECRET,
-    REQUEST_SIGNING_KEY: env.REQUEST_SIGNING_KEY,
+    REQUEST_SIGNING_SECRET: env.REQUEST_SIGNING_SECRET,
     QUEUE_AUTH_TOKEN: env.QUEUE_AUTH_TOKEN,
     DB_PASSWORD: env.DB_PASSWORD,
     REDIS_PASSWORD: env.REDIS_PASSWORD,
@@ -1665,7 +1649,7 @@ function generateAzureSecrets(env, secrets) {
     'webhook-secret': env.WEBHOOK_SECRET,
     'csrf-secret': env.CSRF_SECRET,
     'otp-secret': env.OTP_SECRET,
-    'signing-key': env.REQUEST_SIGNING_KEY,
+    'signing-key': env.REQUEST_SIGNING_SECRET,
     'queue-token': env.QUEUE_AUTH_TOKEN,
     'db-password': env.DB_PASSWORD,
     'redis-password': env.REDIS_PASSWORD,
@@ -1691,7 +1675,7 @@ function generateAzureSecrets(env, secrets) {
         enabled: true,
         tags: {
           environment: env.NODE_ENV || 'production',
-          version: '4.1.0',
+          version: '4.3.0',
           generated: new Date().toISOString()
         }
       });
@@ -1717,7 +1701,7 @@ function generateTerraformVars(env, secrets) {
     csrf_secret: env.CSRF_SECRET,
     otp_secret: env.OTP_SECRET,
     backup_codes: secrets.backupCodes,
-    request_signing_key: env.REQUEST_SIGNING_KEY,
+    request_signing_secret: env.REQUEST_SIGNING_SECRET,
     queue_auth_token: env.QUEUE_AUTH_TOKEN,
     db_password: env.DB_PASSWORD,
     redis_password: env.REDIS_PASSWORD,
@@ -1758,7 +1742,7 @@ function generateAnsibleVars(env, secrets) {
       csrf_secret: env.CSRF_SECRET,
       otp_secret: env.OTP_SECRET,
       backup_codes: secrets.backupCodes,
-      request_signing_key: env.REQUEST_SIGNING_KEY,
+      request_signing_secret: env.REQUEST_SIGNING_SECRET,
       queue_auth_token: env.QUEUE_AUTH_TOKEN,
       database: {
         password: env.DB_PASSWORD,
@@ -1836,7 +1820,7 @@ function generateDockerSecrets(env, secrets) {
     'webhook_secret': secrets.webhookSecret,
     'csrf_secret': secrets.csrfSecret,
     'otp_secret': secrets.otpSecret,
-    'signing_key': env.REQUEST_SIGNING_KEY || secrets.requestSigningKey,
+    'signing_secret': env.REQUEST_SIGNING_SECRET || secrets.requestSigningSecret,
     'queue_token': env.QUEUE_AUTH_TOKEN || secrets.queueAuthToken,
     'redis_password': env.REDIS_PASSWORD || '',
     'db_password': env.DB_PASSWORD || '',
@@ -1898,7 +1882,7 @@ function generateHashiCorpVaultFormat(env, secrets) {
       'webhook': env.WEBHOOK_SECRET,
       'csrf': env.CSRF_SECRET,
       'otp': env.OTP_SECRET,
-      'signing': env.REQUEST_SIGNING_KEY,
+      'signing': env.REQUEST_SIGNING_SECRET,
       'queue': env.QUEUE_AUTH_TOKEN,
       'db-password': env.DB_PASSWORD,
       'redis-password': env.REDIS_PASSWORD,
@@ -2078,10 +2062,10 @@ async function promptForRequestSigning() {
   log('cyan', '\n📝 Configuring Request Signing...');
   const env = {};
   
-  env.REQUEST_SIGNING_KEY = generateRequestSigningKey();
+  env.REQUEST_SIGNING_SECRET = generateRequestSigningSecret();
   env.REQUEST_SIGNING_EXPIRY = await promptForVar('Signature expiry (ms)', '300000');
   
-  log('green', `✅ Generated request signing key: ${env.REQUEST_SIGNING_KEY.substring(0, 8)}...`);
+  log('green', `✅ Generated request signing secret: ${env.REQUEST_SIGNING_SECRET.substring(0, 8)}...`);
   
   return env;
 }
@@ -2320,7 +2304,7 @@ function generateSecurityReport(env, audit) {
     { name: 'JWT secret configured (if using JWT)', check: !env.JWT_SECRET || env.JWT_SECRET.length >= 64 },
     { name: 'Encryption key configured (if encryption enabled)', check: !env.ENABLE_ENCRYPTION || !!env.ENCRYPTION_KEY },
     { name: 'CSRF protection enabled', check: !!env.CSRF_SECRET },
-    { name: 'Request signing configured (for API v2)', check: !env.REQUEST_SIGNING_KEY || env.REQUEST_SIGNING_KEY.length >= 32 },
+    { name: 'Request signing configured (for API v2)', check: !env.REQUEST_SIGNING_SECRET || env.REQUEST_SIGNING_SECRET.length >= 32 },
     { name: 'Rate limiting configured', check: !!env.RATE_LIMIT_MAX_REQUESTS },
     { name: 'MFA configured (if enabled)', check: !env.MFA_ENABLED || (env.MFA_ENABLED === 'true' && env.OTP_SECRET) },
     { name: 'Backup codes generated (if MFA enabled)', check: !env.MFA_ENABLED || env.BACKUP_CODES },
@@ -2489,7 +2473,7 @@ async function main() {
   let password = args.find(arg => !arg.startsWith('--') && arg !== password);
   
   console.log('\n' + '='.repeat(80));
-  log('bright', '🔐 REDIRECTOR PRO v4.1.0 - ENTERPRISE SECRETS GENERATOR v4.0');
+  log('bright', '🔐 REDIRECTOR PRO v4.3.0 - ENTERPRISE SECRETS GENERATOR v4.0');
   console.log('='.repeat(80) + '\n');
 
   log('cyan', '📡 Generating secure values...\n');
@@ -2505,7 +2489,7 @@ async function main() {
     salt: generateSalt(),
     otpSecret: generateOTPSecret(),
     backupCodes: generateBackupCodes(10),
-    requestSigningKey: generateRequestSigningKey(),
+    requestSigningSecret: generateRequestSigningSecret(),
     queueAuthToken: generateQueueAuthToken()
   };
   
@@ -2547,7 +2531,7 @@ async function main() {
   
   if (requestSigning) {
     console.log('\n' + colors.bright + 'Request Signing:' + colors.reset);
-    console.log('  REQUEST_SIGNING_KEY=' + colors.dim + secrets.requestSigningKey + colors.reset);
+    console.log('  REQUEST_SIGNING_SECRET=' + colors.dim + secrets.requestSigningSecret + colors.reset);
     console.log('  REQUEST_SIGNING_EXPIRY=300000');
   }
   
@@ -2608,7 +2592,7 @@ async function main() {
   }
   
   if (requestSigning) {
-    env.REQUEST_SIGNING_KEY = secrets.requestSigningKey;
+    env.REQUEST_SIGNING_SECRET = secrets.requestSigningSecret;
     env.REQUEST_SIGNING_EXPIRY = env.REQUEST_SIGNING_EXPIRY || '300000';
   }
   
@@ -2801,7 +2785,7 @@ async function main() {
   if (encryptSecrets && env.ENCRYPTION_KEY) {
     const sensitiveKeys = [
       'DB_PASSWORD', 'REDIS_PASSWORD', 'SMTP_PASS', 'WEBHOOK_SECRET', 
-      'API_KEY', 'JWT_SECRET', 'REQUEST_SIGNING_KEY', 'QUEUE_AUTH_TOKEN',
+      'API_KEY', 'JWT_SECRET', 'REQUEST_SIGNING_SECRET', 'QUEUE_AUTH_TOKEN',
       'MFA_ENCRYPTION_KEY', 'SESSION_ENCRYPTION_KEY', 'DEVICE_FINGERPRINT_KEY',
       'RATE_LIMITING_KEY', 'AUDIT_LOG_KEY', 'METRICS_AGGREGATOR_KEY',
       'TRANSACTION_MONITOR_KEY', 'BACKUP_ENCRYPTION_KEY'
