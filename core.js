@@ -1,42 +1,42 @@
-// core.js – All shared classes, configuration, caches, utilities, encoding, and initialization
-require(‘dotenv’).config();
-const crypto = require(‘crypto’);
-const zlib = require(‘zlib’);
-const fs = require(‘fs’).promises;
-const path = require(‘path’);
-const Joi = require(‘joi’);
-const bcrypt = require(‘bcryptjs’);
-const { Pool } = require(‘pg’);
-const Redis = require(‘ioredis’);
-const { Queue } = require(‘bull’);
-const LRU = require(‘lru-cache’);
-const Keyv = require(‘keyv’);
-const KeyvFile = require(‘keyv-file’).KeyvFile;
-const { v4: uuidv4 } = require(‘uuid’);
-const sanitizeHtml = require(‘sanitize-html’);
-const ipaddr = require(‘ipaddr.js’);
-const { RateLimiterMemory, RateLimiterRedis } = require(‘rate-limiter-flexible’);
-const circuitBreaker = require(‘opossum’);
-const { performance } = require(‘perf_hooks’);
-const heapdump = require(‘heapdump’);
-const { createLogger, format, transports } = require(‘winston’);
-const winstonDailyRotate = require(‘winston-daily-rotate-file’);
-const promClient = require(‘prom-client’);
-const { createBullBoard } = require(’@bull-board/api’);
-const { BullAdapter } = require(’@bull-board/api/bullAdapter’);
-const { ExpressAdapter } = require(’@bull-board/express’);
-const { createNamespace } = require(‘cls-hooked’);
-const async_hooks = require(‘async_hooks’);
-const useragent = require(‘express-useragent’);
-const uaParser = require(‘ua-parser-js’);
-const fetch = require(‘node-fetch’);
-const JavaScriptObfuscator = require(‘javascript-obfuscator’);
-const QRCode = require(‘qrcode’);
-const { body, validationResult } = require(‘express-validator’);
+// core.js - All shared classes, configuration, caches, utilities, encoding, and initialization
+require('dotenv').config();
+const crypto = require('crypto');
+const zlib = require('zlib');
+const fs = require('fs').promises;
+const path = require('path');
+const Joi = require('joi');
+const bcrypt = require('bcryptjs');
+const { Pool } = require('pg');
+const Redis = require('ioredis');
+const { Queue } = require('bull');
+const LRU = require('lru-cache');
+const Keyv = require('keyv');
+const KeyvFile = require('keyv-file').KeyvFile;
+const { v4: uuidv4 } = require('uuid');
+const sanitizeHtml = require('sanitize-html');
+const ipaddr = require('ipaddr.js');
+const { RateLimiterMemory, RateLimiterRedis } = require('rate-limiter-flexible');
+const circuitBreaker = require('opossum');
+const { performance } = require('perf_hooks');
+const heapdump = require('heapdump');
+const { createLogger, format, transports } = require('winston');
+const winstonDailyRotate = require('winston-daily-rotate-file');
+const promClient = require('prom-client');
+const { createBullBoard } = require('@bull-board/api');
+const { BullAdapter } = require('@bull-board/api/bullAdapter');
+const { ExpressAdapter } = require('@bull-board/express');
+const { createNamespace } = require('cls-hooked');
+const async_hooks = require('async_hooks');
+const useragent = require('express-useragent');
+const uaParser = require('ua-parser-js');
+const fetch = require('node-fetch');
+const JavaScriptObfuscator = require('javascript-obfuscator');
+const QRCode = require('qrcode');
+const { body, validationResult } = require('express-validator');
 
 // ==================== CUSTOM ERROR CLASSES ====================
 class AppError extends Error {
-constructor(message, statusCode = 500, code = ‘INTERNAL_ERROR’) {
+constructor(message, statusCode = 500, code = 'INTERNAL_ERROR') {
 super(message);
 this.statusCode = statusCode;
 this.code = code;
@@ -46,65 +46,65 @@ this.timestamp = new Date().toISOString();
 
 class ValidationError extends AppError {
 constructor(message, details = []) {
-super(message, 400, ‘VALIDATION_ERROR’);
+super(message, 400, 'VALIDATION_ERROR');
 this.details = details;
 }
 }
 
 class DatabaseError extends AppError {
 constructor(message, originalError) {
-super(message, 500, ‘DATABASE_ERROR’);
+super(message, 500, 'DATABASE_ERROR');
 this.originalError = originalError;
 }
 }
 
 // ==================== CONFIGURATION SCHEMA & VALIDATION ====================
 const configSchema = Joi.object({
-NODE_ENV: Joi.string().valid(‘development’, ‘production’, ‘test’).default(‘production’),
+NODE_ENV: Joi.string().valid('development', 'production', 'test').default('production'),
 PORT: Joi.number().port().default(10000),
-HOST: Joi.string().default(‘0.0.0.0’),
+HOST: Joi.string().default('0.0.0.0'),
 TARGET_URL: Joi.string().uri().required(),
-REDIS_URL: Joi.string().uri().optional().allow(’’, null),
+REDIS_URL: Joi.string().uri().optional().allow('', null),
 REDIS_HOST: Joi.string().optional(),
 REDIS_PORT: Joi.number().port().default(6379),
-REDIS_PASSWORD: Joi.string().optional().allow(’’),
+REDIS_PASSWORD: Joi.string().optional().allow(''),
 REDIS_DB: Joi.number().default(0),
 SESSION_SECRET: Joi.string().min(32).required(),
 METRICS_API_KEY: Joi.string().min(16).required(),
 ADMIN_USERNAME: Joi.string().min(3).required(),
 ADMIN_PASSWORD_HASH: Joi.string().required(),
-IPINFO_TOKEN: Joi.string().optional().allow(’’),
-LINK_TTL: Joi.string().pattern(/^(\d+)([smhd])?$/i).default(‘30m’),
+IPINFO_TOKEN: Joi.string().optional().allow(''),
+LINK_TTL: Joi.string().pattern(/^(\d+)([smhd])?$/i).default('30m'),
 MAX_LINKS: Joi.number().integer().min(100).max(10000000).default(1000000),
-BOT_URLS: Joi.string().optional().default(’’),
-CORS_ORIGIN: Joi.string().optional().default(’*’),
-DATABASE_URL: Joi.string().uri().optional().allow(’’, null),
-SMTP_HOST: Joi.string().optional().allow(’’),
+BOT_URLS: Joi.string().optional().default(''),
+CORS_ORIGIN: Joi.string().optional().default('*'),
+DATABASE_URL: Joi.string().uri().optional().allow('', null),
+SMTP_HOST: Joi.string().optional().allow(''),
 SMTP_PORT: Joi.number().port().optional(),
-SMTP_USER: Joi.string().optional().allow(’’),
-SMTP_PASS: Joi.string().optional().allow(’’),
-ALERT_EMAIL: Joi.string().email().optional().allow(’’),
+SMTP_USER: Joi.string().optional().allow(''),
+SMTP_PASS: Joi.string().optional().allow(''),
+ALERT_EMAIL: Joi.string().email().optional().allow(''),
 DISABLE_DESKTOP_CHALLENGE: Joi.boolean().default(false),
 HTTPS_ENABLED: Joi.boolean().default(false),
 DEBUG: Joi.boolean().default(false),
 BULL_BOARD_ENABLED: Joi.boolean().default(true),
-BULL_BOARD_PATH: Joi.string().default(’/admin/queues’),
+BULL_BOARD_PATH: Joi.string().default('/admin/queues'),
 CSRF_SECRET: Joi.string().min(32).optional(),
 TRUST_PROXY: Joi.number().default(1),
-LINK_LENGTH_MODE: Joi.string().valid(‘short’, ‘long’, ‘auto’).default(‘short’),
+LINK_LENGTH_MODE: Joi.string().valid('short', 'long', 'auto').default('short'),
 ALLOW_LINK_MODE_SWITCH: Joi.boolean().default(true),
 LONG_LINK_SEGMENTS: Joi.number().integer().min(3).max(20).default(6),
 LONG_LINK_PARAMS: Joi.number().integer().min(5).max(50).default(13),
 LINK_ENCODING_LAYERS: Joi.number().integer().min(2).max(12).default(4),
 ENABLE_COMPRESSION: Joi.boolean().default(true),
 ENABLE_ENCRYPTION: Joi.boolean().default(false),
-ENCRYPTION_KEY: Joi.string().when(‘ENABLE_ENCRYPTION’, { is: true, then: Joi.required() }),
+ENCRYPTION_KEY: Joi.string().when('ENABLE_ENCRYPTION', { is: true, then: Joi.required() }),
 MAX_ENCODING_ITERATIONS: Joi.number().integer().min(1).max(5).default(3),
 ENCODING_COMPLEXITY_THRESHOLD: Joi.number().integer().min(10).max(100).default(50),
 REQUEST_SIGNING_SECRET: Joi.string().min(32).required(),
 REQUEST_SIGNING_EXPIRY: Joi.number().default(300000),
-DEFAULT_API_VERSION: Joi.string().valid(‘v1’, ‘v2’).default(‘v1’),
-SUPPORTED_API_VERSIONS: Joi.string().default(‘v1,v2’),
+DEFAULT_API_VERSION: Joi.string().valid('v1', 'v2').default('v1'),
+SUPPORTED_API_VERSIONS: Joi.string().default('v1,v2'),
 API_VERSION_STRICT: Joi.boolean().default(false),
 RATE_LIMIT_WINDOW: Joi.number().default(60000),
 RATE_LIMIT_MAX_REQUESTS: Joi.number().default(100),
@@ -118,9 +118,9 @@ DB_CONNECTION_TIMEOUT: Joi.number().default(5000),
 DB_QUERY_TIMEOUT: Joi.number().default(10000),
 DB_TRANSACTION_TIMEOUT: Joi.number().default(30000),
 DB_TRANSACTION_RETRIES: Joi.number().default(3),
-DB_ISOLATION_LEVEL: Joi.string().valid(‘READ COMMITTED’, ‘REPEATABLE READ’, ‘SERIALIZABLE’).default(‘SERIALIZABLE’),
+DB_ISOLATION_LEVEL: Joi.string().valid('READ COMMITTED', 'REPEATABLE READ', 'SERIALIZABLE').default('SERIALIZABLE'),
 ENCRYPTION_KEY_ROTATION_DAYS: Joi.number().default(7),
-ENCRYPTION_KEY_STORAGE_PATH: Joi.string().default(’./data/keys’),
+ENCRYPTION_KEY_STORAGE_PATH: Joi.string().default('./data/keys'),
 BCRYPT_ROUNDS: Joi.number().default(12),
 SESSION_TTL: Joi.number().default(86400),
 SESSION_ABSOLUTE_TIMEOUT: Joi.number().default(604800),
@@ -128,15 +128,15 @@ CSP_ENABLED: Joi.boolean().default(true),
 HSTS_ENABLED: Joi.boolean().default(true),
 LOGIN_ATTEMPTS_MAX: Joi.number().default(10),
 LOGIN_BLOCK_DURATION: Joi.number().default(3600000),
-BLOCKED_DOMAINS: Joi.string().optional().default(‘localhost,127.0.0.1,::1,0.0.0.0’),
-LOG_LEVEL: Joi.string().valid(‘error’, ‘warn’, ‘info’, ‘debug’).default(‘info’),
-LOG_FORMAT: Joi.string().valid(‘json’, ‘simple’, ‘combined’).default(‘json’),
+BLOCKED_DOMAINS: Joi.string().optional().default('localhost,127.0.0.1,::1,0.0.0.0'),
+LOG_LEVEL: Joi.string().valid('error', 'warn', 'info', 'debug').default('info'),
+LOG_FORMAT: Joi.string().valid('json', 'simple', 'combined').default('json'),
 LOG_TO_FILE: Joi.boolean().default(true),
 LOG_TO_CONSOLE: Joi.boolean().default(true),
 LOG_RETENTION_DAYS: Joi.number().default(30),
-LOG_MAX_SIZE: Joi.string().default(‘20m’),
+LOG_MAX_SIZE: Joi.string().default('20m'),
 METRICS_ENABLED: Joi.boolean().default(true),
-METRICS_PREFIX: Joi.string().default(‘redirector_’),
+METRICS_PREFIX: Joi.string().default('redirector_'),
 METRICS_BUCKETS: Joi.array().items(Joi.number()).default([0.1, 5, 15, 50, 100, 200, 300, 400, 500, 1000, 2000, 5000]),
 MAX_RESPONSE_TIMES_HISTORY: Joi.number().default(1000),
 MAX_STATS_HISTORY: Joi.number().default(1000),
@@ -157,7 +157,7 @@ CPU_THRESHOLD_CRITICAL: Joi.number().default(0.8),
 AUTO_BACKUP_ENABLED: Joi.boolean().default(true),
 AUTO_BACKUP_INTERVAL: Joi.number().default(86400000),
 BACKUP_RETENTION_DAYS: Joi.number().default(7),
-MAX_REQUEST_SIZE: Joi.string().default(‘10kb’),
+MAX_REQUEST_SIZE: Joi.string().default('10kb'),
 SLOW_QUERY_THRESHOLD: Joi.number().default(1000),
 GEO_VALIDATION_TIMEOUT: Joi.number().default(1500),
 GEO_VALIDATION_FAILURE_THRESHOLD: Joi.number().default(3)
@@ -170,22 +170,22 @@ abortEarly: false
 });
 
 if (configError) {
-console.error(‘❌ Configuration validation error:’);
+console.error('❌ Configuration validation error:');
 configError.details.forEach(d => console.error(`   • ${d.message}`));
 process.exit(1);
 }
 
-const CONFIG = { …validatedConfig };
+const CONFIG = { ...validatedConfig };
 
 // Parse comma-separated values
-CONFIG.BOT_URLS = CONFIG.BOT_URLS ? CONFIG.BOT_URLS.split(’,’).map(url => url.trim()) : [
-‘https://www.microsoft.com’, ‘https://www.apple.com’, ‘https://www.google.com’,
-‘https://en.wikipedia.org/wiki/Main_Page’, ‘https://www.bbc.com’
+CONFIG.BOT_URLS = CONFIG.BOT_URLS ? CONFIG.BOT_URLS.split(',').map(url => url.trim()) : [
+'https://www.microsoft.com', 'https://www.apple.com', 'https://www.google.com',
+'https://en.wikipedia.org/wiki/Main_Page', 'https://www.bbc.com'
 ];
-CONFIG.BLOCKED_DOMAINS = CONFIG.BLOCKED_DOMAINS ? CONFIG.BLOCKED_DOMAINS.split(’,’).map(d => d.trim()) : [
-‘localhost’, ‘127.0.0.1’, ‘::1’, ‘0.0.0.0’
+CONFIG.BLOCKED_DOMAINS = CONFIG.BLOCKED_DOMAINS ? CONFIG.BLOCKED_DOMAINS.split(',').map(d => d.trim()) : [
+'localhost', '127.0.0.1', '::1', '0.0.0.0'
 ];
-CONFIG.SUPPORTED_API_VERSIONS = CONFIG.SUPPORTED_API_VERSIONS.split(’,’).map(v => v.trim());
+CONFIG.SUPPORTED_API_VERSIONS = CONFIG.SUPPORTED_API_VERSIONS.split(',').map(v => v.trim());
 
 // ==================== HELPER FUNCTIONS ====================
 function parseTTL(ttlValue) {
@@ -194,12 +194,12 @@ if (!ttlValue) return defaultTTL;
 const match = String(ttlValue).match(/^(\d+)([smhd])?$/i);
 if (!match) return defaultTTL;
 const num = parseInt(match[1], 10);
-const unit = (match[2] || ‘m’).toLowerCase();
+const unit = (match[2] || 'm').toLowerCase();
 switch (unit) {
-case ‘s’: return Math.max(60, num);
-case ‘m’: return Math.max(1, num) * 60;
-case ‘h’: return Math.max(1, num) * 3600;
-case ‘d’: return Math.max(1, num) * 86400;
+case 's': return Math.max(60, num);
+case 'm': return Math.max(1, num) * 60;
+case 'h': return Math.max(1, num) * 3600;
+case 'd': return Math.max(1, num) * 86400;
 default: return Math.max(60, num * 60);
 }
 }
@@ -223,7 +223,7 @@ return hours > 0 ? `${days} day${days !== 1 ? 's' : ''} ${hours} hour${hours !==
 function validateUrl(url) {
 try {
 const urlObj = new URL(url);
-if (![‘http:’, ‘https:’].includes(urlObj.protocol)) return false;
+if (!['http:', 'https:'].includes(urlObj.protocol)) return false;
 const hostname = urlObj.hostname.toLowerCase();
 const isBlocked = CONFIG.BLOCKED_DOMAINS.some(blocked => hostname === blocked || hostname.endsWith(`.${blocked}`));
 if (isBlocked) return false;
@@ -234,7 +234,7 @@ addr = ipaddr.parse(hostname);
 } catch (e) {
 return true; // not an IP, safe
 }
-const privateRanges = [‘private’, ‘loopback’, ‘linkLocal’, ‘uniqueLocal’, ‘multicast’];
+const privateRanges = ['private', 'loopback', 'linkLocal', 'uniqueLocal', 'multicast'];
 return !privateRanges.includes(addr.range());
 } catch (err) {
 return false;
@@ -243,16 +243,16 @@ return false;
 
 // Sanitize log entries to prevent log injection
 function sanitizeLogEntry(entry) {
-if (typeof entry === ‘string’) {
-return entry.replace(/[\r\n]/g, ‘\n’).slice(0, 1000);
+if (typeof entry === 'string') {
+return entry.replace(/[\r\n]/g, '\n').slice(0, 1000);
 }
-if (typeof entry === ‘object’ && entry !== null) {
+if (typeof entry === 'object' && entry !== null) {
 const sanitized = {};
 for (const [key, value] of Object.entries(entry)) {
-if (typeof value === ‘string’) {
-sanitized[key] = value.replace(/[\r\n]/g, ‘\n’).slice(0, 500);
-} else if (typeof value === ‘object’) {
-sanitized[key] = ‘[Object]’;
+if (typeof value === 'string') {
+sanitized[key] = value.replace(/[\r\n]/g, '\n').slice(0, 500);
+} else if (typeof value === 'object') {
+sanitized[key] = '[Object]';
 } else {
 sanitized[key] = value;
 }
@@ -263,30 +263,30 @@ return entry;
 }
 
 // ==================== LOGGER SETUP ====================
-const logDir = ‘logs’;
+const logDir = 'logs';
 const logTransports = [];
 
 if (CONFIG.LOG_TO_FILE) {
 logTransports.push(
 new winstonDailyRotate({
-filename: path.join(logDir, ‘error-%DATE%.log’),
-datePattern: ‘YYYY-MM-DD’,
-level: ‘error’,
+filename: path.join(logDir, 'error-%DATE%.log'),
+datePattern: 'YYYY-MM-DD',
+level: 'error',
 maxSize: CONFIG.LOG_MAX_SIZE,
 maxFiles: `${CONFIG.LOG_RETENTION_DAYS}d`,
 zippedArchive: true
 }),
 new winstonDailyRotate({
-filename: path.join(logDir, ‘combined-%DATE%.log’),
-datePattern: ‘YYYY-MM-DD’,
+filename: path.join(logDir, 'combined-%DATE%.log'),
+datePattern: 'YYYY-MM-DD',
 maxSize: CONFIG.LOG_MAX_SIZE,
 maxFiles: `${CONFIG.LOG_RETENTION_DAYS}d`,
 zippedArchive: true
 }),
 new winstonDailyRotate({
-filename: path.join(logDir, ‘audit-%DATE%.log’),
-datePattern: ‘YYYY-MM-DD’,
-level: ‘info’,
+filename: path.join(logDir, 'audit-%DATE%.log'),
+datePattern: 'YYYY-MM-DD',
+level: 'info',
 maxSize: CONFIG.LOG_MAX_SIZE,
 maxFiles: `${CONFIG.LOG_RETENTION_DAYS * 3}d`,
 zippedArchive: true
@@ -308,15 +308,15 @@ format: format.combine(
 format.timestamp(),
 format.errors({ stack: true }),
 format.splat(),
-format.printf(({ timestamp, level, message, …meta }) => {
+format.printf(({ timestamp, level, message, ...meta }) => {
 const sanitized = sanitizeLogEntry(meta);
-return JSON.stringify({ timestamp, level, message, …sanitized });
+return JSON.stringify({ timestamp, level, message, ...sanitized });
 })
 ),
-defaultMeta: { service: ‘redirector-pro’, environment: CONFIG.NODE_ENV, version: ‘4.3.0’ },
+defaultMeta: { service: 'redirector-pro', environment: CONFIG.NODE_ENV, version: '4.3.0' },
 transports: logTransports,
-exceptionHandlers: [new transports.File({ filename: path.join(logDir, ‘exceptions.log’) })],
-rejectionHandlers: [new transports.File({ filename: path.join(logDir, ‘rejections.log’) })],
+exceptionHandlers: [new transports.File({ filename: path.join(logDir, 'exceptions.log') })],
+rejectionHandlers: [new transports.File({ filename: path.join(logDir, 'rejections.log') })],
 exitOnError: false
 });
 
@@ -469,128 +469,128 @@ gcDurationBuckets: CONFIG.METRICS_BUCKETS
 
 const httpRequestDurationMicroseconds = new promClient.Histogram({
 name: `${CONFIG.METRICS_PREFIX}http_request_duration_ms`,
-help: ‘Duration of HTTP requests in ms’,
-labelNames: [‘method’, ‘route’, ‘code’, ‘version’],
+help: 'Duration of HTTP requests in ms',
+labelNames: ['method', 'route', 'code', 'version'],
 buckets: CONFIG.METRICS_BUCKETS,
 registers: [register]
 });
 
 const activeConnections = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}active_connections`,
-help: ‘Number of active connections’,
-labelNames: [‘type’],
+help: 'Number of active connections',
+labelNames: ['type'],
 registers: [register]
 });
 
 const totalRequests = new promClient.Counter({
 name: `${CONFIG.METRICS_PREFIX}total_requests`,
-help: ‘Total number of requests’,
-labelNames: [‘method’, ‘path’, ‘status’, ‘version’],
+help: 'Total number of requests',
+labelNames: ['method', 'path', 'status', 'version'],
 registers: [register]
 });
 
 const botBlocks = new promClient.Counter({
 name: `${CONFIG.METRICS_PREFIX}bot_blocks_total`,
-help: ‘Total number of bot blocks’,
-labelNames: [‘reason’],
+help: 'Total number of bot blocks',
+labelNames: ['reason'],
 registers: [register]
 });
 
 const linkGenerations = new promClient.Counter({
 name: `${CONFIG.METRICS_PREFIX}link_generations_total`,
-help: ‘Total number of link generations’,
-labelNames: [‘mode’, ‘version’],
+help: 'Total number of link generations',
+labelNames: ['mode', 'version'],
 registers: [register]
 });
 
 const linkModeCounter = new promClient.Counter({
 name: `${CONFIG.METRICS_PREFIX}link_mode_total`,
-help: ‘Total number of links by mode’,
-labelNames: [‘mode’],
+help: 'Total number of links by mode',
+labelNames: ['mode'],
 registers: [register]
 });
 
 const encodingComplexityGauge = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}encoding_complexity`,
-help: ‘Encoding complexity metrics’,
-labelNames: [‘type’],
+help: 'Encoding complexity metrics',
+labelNames: ['type'],
 registers: [register]
 });
 
 const encodingDurationHistogram = new promClient.Histogram({
 name: `${CONFIG.METRICS_PREFIX}encoding_duration_seconds`,
-help: ‘Time spent encoding links’,
-labelNames: [‘mode’, ‘layers’, ‘iterations’],
+help: 'Time spent encoding links',
+labelNames: ['mode', 'layers', 'iterations'],
 buckets: [0.1, 0.5, 1, 2, 5, 10],
 registers: [register]
 });
 
 const cacheHitRate = new promClient.Counter({
 name: `${CONFIG.METRICS_PREFIX}cache_hit_rate`,
-help: ‘Cache hit rate’,
-labelNames: [‘cache’],
+help: 'Cache hit rate',
+labelNames: ['cache'],
 registers: [register]
 });
 
 const cacheMissRate = new promClient.Counter({
 name: `${CONFIG.METRICS_PREFIX}cache_miss_rate`,
-help: ‘Cache miss rate’,
-labelNames: [‘cache’],
+help: 'Cache miss rate',
+labelNames: ['cache'],
 registers: [register]
 });
 
 const memoryUsageGauge = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}memory_usage_bytes`,
-help: ‘Memory usage in bytes’,
-labelNames: [‘type’],
+help: 'Memory usage in bytes',
+labelNames: ['type'],
 registers: [register]
 });
 
 const cpuUsageGauge = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}cpu_usage_percent`,
-help: ‘CPU usage percentage’,
+help: 'CPU usage percentage',
 registers: [register]
 });
 
 const databaseConnectionGauge = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}database_connections`,
-help: ‘Database connection pool stats’,
-labelNames: [‘state’],
+help: 'Database connection pool stats',
+labelNames: ['state'],
 registers: [register]
 });
 
 const queueSizeGauge = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}queue_size`,
-help: ‘Queue size by status’,
-labelNames: [‘queue’, ‘status’],
+help: 'Queue size by status',
+labelNames: ['queue', 'status'],
 registers: [register]
 });
 
 const signatureValidationCounter = new promClient.Counter({
 name: `${CONFIG.METRICS_PREFIX}signature_validations_total`,
-help: ‘Total number of signature validations’,
-labelNames: [‘result’],
+help: 'Total number of signature validations',
+labelNames: ['result'],
 registers: [register]
 });
 
 const memoryLeakDetected = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}memory_leak_detected`,
-help: ‘Memory leak detection status’,
-labelNames: [‘status’],
+help: 'Memory leak detection status',
+labelNames: ['status'],
 registers: [register]
 });
 
 const circuitBreakerMetrics = new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}circuit_breaker_state`,
-help: ‘Circuit breaker state (0=closed, 1=half-open, 2=open)’,
-labelNames: [‘breaker’],
+help: 'Circuit breaker state (0=closed, 1=half-open, 2=open)',
+labelNames: ['breaker'],
 registers: [register]
 });
 
 const slowQueryMetrics = new promClient.Histogram({
 name: `${CONFIG.METRICS_PREFIX}slow_queries_seconds`,
-help: ‘Slow query duration’,
-labelNames: [‘query’],
+help: 'Slow query duration',
+labelNames: ['query'],
 buckets: [1, 2, 5, 10, 20],
 registers: [register]
 });
@@ -598,33 +598,33 @@ registers: [register]
 const businessMetrics = {
 linkCreationRate: new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}link_creation_rate`,
-help: ‘Links created per minute’,
-labelNames: [‘mode’],
+help: 'Links created per minute',
+labelNames: ['mode'],
 registers: [register]
 }),
 botDetectionRate: new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}bot_detection_rate`,
-help: ‘Bot detections per minute’,
-labelNames: [‘reason’],
+help: 'Bot detections per minute',
+labelNames: ['reason'],
 registers: [register]
 }),
 redirectRate: new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}redirect_rate`,
-help: ‘Redirects per minute’,
-labelNames: [‘mode’, ‘status’],
+help: 'Redirects per minute',
+labelNames: ['mode', 'status'],
 registers: [register]
 }),
 encodingQuality: new promClient.Gauge({
 name: `${CONFIG.METRICS_PREFIX}encoding_quality`,
-help: ‘Encoding quality metrics’,
-labelNames: [‘metric’],
+help: 'Encoding quality metrics',
+labelNames: ['metric'],
 registers: [register]
 })
 };
 
 // ==================== CLASS DEFINITIONS ====================
 
-// — MemoryLeakDetector —
+// - MemoryLeakDetector -
 class MemoryLeakDetector {
 constructor(options = {}) {
 this.snapshots = [];
@@ -664,7 +664,7 @@ if (i === 0) return sum;
 return sum + ((s.heapUsed - arr[i - 1].heapUsed) / 1024 / 1024);
 }, 0) / (recentSnapshots.length - 1);
 
-```
+
 return {
   totalGrowth: heapGrowth,
   growthRate,
@@ -680,7 +680,7 @@ return {
       ? 'warning'
       : 'normal'
 };
-```
+
 
 }
 
@@ -691,21 +691,21 @@ return analysis && (analysis.detected || analysis.heapPercent > 0.9 || analysis.
 getRecommendedActions(analysis) {
 const actions = [];
 if (!analysis) return actions;
-if (analysis.heapPercent > 0.95) actions.push(‘IMMEDIATE_GC’);
+if (analysis.heapPercent > 0.95) actions.push('IMMEDIATE_GC');
 if (analysis.growthRate > this.growthThreshold * 3) {
-actions.push(‘CLEAR_ALL_CACHES’);
+actions.push('CLEAR_ALL_CACHES');
 } else if (analysis.growthRate > this.growthThreshold) {
-actions.push(‘CLEAR_VOLATILE_CACHES’);
+actions.push('CLEAR_VOLATILE_CACHES');
 }
-if (analysis.severity === ‘critical’) {
-actions.push(‘TAKE_HEAPDUMP’);
-actions.push(‘SCALE_UP’);
+if (analysis.severity === 'critical') {
+actions.push('TAKE_HEAPDUMP');
+actions.push('SCALE_UP');
 }
 return actions;
 }
 }
 
-// — DatabaseManager —
+// - DatabaseManager -
 class DatabaseManager {
 constructor(pool, options = {}) {
 this.pool = pool;
@@ -713,7 +713,7 @@ this.options = {
 healthCheckInterval: 30000,
 maxRetries: 5,
 retryDelay: 1000,
-…options
+...options
 };
 this.isConnected = false;
 this.retryCount = 0;
@@ -728,13 +728,13 @@ this.startHealthCheck();
 
 async testConnection() {
 try {
-await this.pool.query(‘SELECT 1’);
+await this.pool.query('SELECT 1');
 this.isConnected = true;
 this.retryCount = 0;
 return true;
 } catch (e) {
 this.isConnected = false;
-logger.warn(‘Database connection test failed:’, sanitizeLogEntry(e.message));
+logger.warn('Database connection test failed:', sanitizeLogEntry(e.message));
 return false;
 }
 }
@@ -745,7 +745,7 @@ const wasConnected = this.isConnected;
 const isConnected = await this.testConnection();
 if (!wasConnected && isConnected) {
 this.retryCount = 0;
-logger.info(‘Database connection restored’);
+logger.info('Database connection restored');
 }
 if (!isConnected) {
 this.retryCount++;
@@ -761,11 +761,11 @@ try {
 await this.pool.end();
 this.pool = new Pool({
 connectionString: CONFIG.DATABASE_URL,
-…this.options.poolOptions
+...this.options.poolOptions
 });
 await this.testConnection();
 } catch (e) {
-logger.error(‘Reconnection attempt failed:’, sanitizeLogEntry(e.message));
+logger.error('Reconnection attempt failed:', sanitizeLogEntry(e.message));
 if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
 const backoffDelay = this.options.retryDelay * Math.pow(2, Math.min(this.retryCount, 5));
 this.reconnectTimer = setTimeout(
@@ -782,7 +782,7 @@ await this.pool.end();
 }
 }
 
-// — CircuitBreakerMonitor —
+// - CircuitBreakerMonitor -
 class CircuitBreakerMonitor {
 constructor() {
 this.breakers = new Map();
@@ -791,23 +791,23 @@ this.metrics = { opens: 0, closes: 0, rejects: 0, timeouts: 0 };
 
 register(name, breaker) {
 this.breakers.set(name, breaker);
-breaker.on(‘open’, () => {
+breaker.on('open', () => {
 this.metrics.opens++;
 logger.warn(`Circuit breaker ${name} opened`);
 circuitBreakerMetrics.labels(name).set(2); // open
 });
-breaker.on(‘close’, () => {
+breaker.on('close', () => {
 this.metrics.closes++;
 logger.info(`Circuit breaker ${name} closed`);
 circuitBreakerMetrics.labels(name).set(0); // closed
 });
-breaker.on(‘reject’, () => {
+breaker.on('reject', () => {
 this.metrics.rejects++;
 });
-breaker.on(‘timeout’, () => {
+breaker.on('timeout', () => {
 this.metrics.timeouts++;
 });
-breaker.on(‘halfOpen’, () => {
+breaker.on('halfOpen', () => {
 logger.info(`Circuit breaker ${name} half-open`);
 circuitBreakerMetrics.labels(name).set(1); // half-open
 });
@@ -817,7 +817,7 @@ getStatus() {
 const status = {};
 for (const [name, breaker] of this.breakers) {
 status[name] = {
-state: breaker.opened ? ‘open’ : breaker.halfOpen ? ‘half-open’ : ‘closed’,
+state: breaker.opened ? 'open' : breaker.halfOpen ? 'half-open' : 'closed',
 stats: breaker.stats,
 pending: breaker.pending,
 enabled: breaker.enabled
@@ -827,11 +827,11 @@ return status;
 }
 
 getMetrics() {
-return { …this.metrics, breakers: this.breakers.size };
+return { ...this.metrics, breakers: this.breakers.size };
 }
 }
 
-// — EncryptionKeyManager —
+// - EncryptionKeyManager -
 class EncryptionKeyManager {
 constructor() {
 this.keys = new Map();
@@ -839,7 +839,7 @@ this.currentKeyId = null;
 this.rotationInterval = CONFIG.ENCRYPTION_KEY_ROTATION_DAYS * 86400000;
 this.keyHistory = new Keyv({
 store: new KeyvFile({
-filename: path.join(CONFIG.ENCRYPTION_KEY_STORAGE_PATH, ‘keys.json’),
+filename: path.join(CONFIG.ENCRYPTION_KEY_STORAGE_PATH, 'keys.json'),
 expiredCheckDelay: 86400000
 })
 });
@@ -851,23 +851,23 @@ async ensureStorageDirectory() {
 try {
 await fs.mkdir(CONFIG.ENCRYPTION_KEY_STORAGE_PATH, { recursive: true, mode: 0o700 });
 } catch (e) {
-logger.warn(‘Failed to ensure storage directory:’, sanitizeLogEntry(e.message));
+logger.warn('Failed to ensure storage directory:', sanitizeLogEntry(e.message));
 }
 }
 
 async initialize() {
 try {
-const savedKeys = (await this.keyHistory.get(‘encryption_keys’)) || [];
+const savedKeys = (await this.keyHistory.get('encryption_keys')) || [];
 savedKeys.forEach(keyData => {
 this.keys.set(keyData.id, {
-key: Buffer.from(keyData.key, ‘hex’),
+key: Buffer.from(keyData.key, 'hex'),
 createdAt: new Date(keyData.createdAt),
 expiresAt: new Date(keyData.expiresAt),
 version: keyData.version
 });
 });
 
-```
+
   const validKeys = Array.from(this.keys.values())
     .filter(k => k.expiresAt > new Date())
     .sort((a, b) => b.createdAt - a.createdAt);
@@ -891,7 +891,7 @@ version: keyData.version
   logger.error('Failed to initialize encryption key manager:', sanitizeLogEntry(e.message));
   throw e;
 }
-```
+
 
 }
 
@@ -902,7 +902,7 @@ const now = new Date();
 const expiresAt = new Date(now.getTime() + this.rotationInterval);
 const keyData = {
 id: keyId,
-key: key.toString(‘hex’),
+key: key.toString('hex'),
 createdAt: now.toISOString(),
 expiresAt: expiresAt.toISOString(),
 version: this.keys.size + 1
@@ -913,11 +913,11 @@ createdAt: now,
 expiresAt,
 version: keyData.version
 });
-const savedKeys = (await this.keyHistory.get(‘encryption_keys’)) || [];
+const savedKeys = (await this.keyHistory.get('encryption_keys')) || [];
 savedKeys.push(keyData);
-await this.keyHistory.set(‘encryption_keys’, savedKeys);
+await this.keyHistory.set('encryption_keys', savedKeys);
 this.currentKeyId = keyId;
-logger.info(‘🆕 New encryption key generated’, {
+logger.info('🆕 New encryption key generated', {
 keyId,
 version: keyData.version,
 expiresAt
@@ -930,7 +930,7 @@ globalIntervals.keyRotationCheck = setInterval(async () => {
 try {
 await this.rotateKeyIfNeeded();
 } catch (e) {
-logger.error(‘Key rotation error:’, sanitizeLogEntry(e.message));
+logger.error('Key rotation error:', sanitizeLogEntry(e.message));
 }
 }, 86400000);
 }
@@ -943,7 +943,7 @@ return;
 }
 const daysUntilExpiry = (currentKey.expiresAt - new Date()) / 86400000;
 if (daysUntilExpiry < 1) {
-logger.info(‘Rotating encryption key’, {
+logger.info('Rotating encryption key', {
 currentKey: this.currentKeyId,
 expiresIn: `${Math.round(daysUntilExpiry * 24)} hours`
 });
@@ -961,16 +961,16 @@ return this.keys.get(keyId);
 
 encrypt(data, keyId = null) {
 const key = keyId ? this.getKey(keyId) : this.getCurrentKey();
-if (!key) throw new AppError(‘No encryption key available’, 500, ‘NO_ENCRYPTION_KEY’);
+if (!key) throw new AppError('No encryption key available', 500, 'NO_ENCRYPTION_KEY');
 const iv = crypto.randomBytes(16);
-const cipher = crypto.createCipheriv(‘aes-256-gcm’, key.key, iv);
-let encrypted = cipher.update(data, ‘utf8’, ‘hex’);
-encrypted += cipher.final(‘hex’);
+const cipher = crypto.createCipheriv('aes-256-gcm', key.key, iv);
+let encrypted = cipher.update(data, 'utf8', 'hex');
+encrypted += cipher.final('hex');
 const authTag = cipher.getAuthTag();
 return {
 data: encrypted,
-iv: iv.toString(‘hex’),
-authTag: authTag.toString(‘hex’),
+iv: iv.toString('hex'),
+authTag: authTag.toString('hex'),
 keyId: keyId || this.currentKeyId,
 version: key.version
 };
@@ -979,11 +979,11 @@ version: key.version
 decrypt(encryptedData) {
 const { data, iv, authTag, keyId } = encryptedData;
 const key = this.getKey(keyId);
-if (!key) throw new AppError(`Key not found: ${keyId}`, 500, ‘KEY_NOT_FOUND’);
-const decipher = crypto.createDecipheriv(‘aes-256-gcm’, key.key, Buffer.from(iv, ‘hex’));
-decipher.setAuthTag(Buffer.from(authTag, ‘hex’));
-let decrypted = decipher.update(data, ‘hex’, ‘utf8’);
-decrypted += decipher.final(‘utf8’);
+if (!key) throw new AppError(`Key not found: ${keyId}`, 500, 'KEY_NOT_FOUND');
+const decipher = crypto.createDecipheriv('aes-256-gcm', key.key, Buffer.from(iv, 'hex'));
+decipher.setAuthTag(Buffer.from(authTag, 'hex'));
+let decrypted = decipher.update(data, 'hex', 'utf8');
+decrypted += decipher.final('utf8');
 return decrypted;
 }
 
@@ -1034,16 +1034,16 @@ return removed;
 }
 }
 
-// — RequestSigner —
+// - RequestSigner -
 class RequestSigner {
 constructor(secretKey, options = {}) {
 this.secretKey = secretKey;
 this.options = {
 expiryTime: CONFIG.REQUEST_SIGNING_EXPIRY,
-algorithm: ‘sha256’,
-headerPrefix: ‘v1’,
-requiredPaths: [’/api/v2/generate’, ‘/api/v2/bulk’, ‘/api/settings’],
-…options
+algorithm: 'sha256',
+headerPrefix: 'v1',
+requiredPaths: ['/api/v2/generate', '/api/v2/bulk', '/api/settings'],
+...options
 };
 }
 
@@ -1053,30 +1053,30 @@ method.toUpperCase(),
 path,
 timestamp,
 nonce,
-typeof body === ‘string’ ? body : JSON.stringify(body || {})
-].join(’|’);
-return crypto.createHmac(this.options.algorithm, this.secretKey).update(payload).digest(‘hex’);
+typeof body === 'string' ? body : JSON.stringify(body || {})
+].join('|');
+return crypto.createHmac(this.options.algorithm, this.secretKey).update(payload).digest('hex');
 }
 
 signRequest(req, res, next) {
 const timestamp = Date.now().toString();
-const nonce = crypto.randomBytes(16).toString(‘hex’);
+const nonce = crypto.randomBytes(16).toString('hex');
 const signature = this.generateSignature(req.method, req.originalUrl || req.url, req.body, timestamp, nonce);
-res.setHeader(‘X-Signature’, signature);
-res.setHeader(‘X-Timestamp’, timestamp);
-res.setHeader(‘X-Nonce’, nonce);
-res.setHeader(‘X-Signature-Version’, this.options.headerPrefix);
+res.setHeader('X-Signature', signature);
+res.setHeader('X-Timestamp', timestamp);
+res.setHeader('X-Nonce', nonce);
+res.setHeader('X-Signature-Version', this.options.headerPrefix);
 req.signature = { timestamp, nonce, signature };
 next();
 }
 
 verifySignature(req, res, next) {
-if (req.method === ‘GET’ && !this.options.requiredPaths.includes(req.path)) return next();
-const signature = req.headers[‘x-signature’];
-const timestamp = req.headers[‘x-timestamp’];
-const nonce = req.headers[‘x-nonce’];
+if (req.method === 'GET' && !this.options.requiredPaths.includes(req.path)) return next();
+const signature = req.headers['x-signature'];
+const timestamp = req.headers['x-timestamp'];
+const nonce = req.headers['x-nonce'];
 
-```
+
 if (!signature || !timestamp || !nonce) {
   return next(
     new AppError('Missing request signature', 401, 'MISSING_SIGNATURE')
@@ -1123,14 +1123,14 @@ try {
 signatureValidationCounter.inc({ result: 'valid' });
 stats.signatures.valid++;
 next();
-```
+
 
 }
 
 requireSignature(paths = []) {
 return (req, res, next) => {
 const shouldVerify = paths.some(path =>
-typeof path === ‘string’
+typeof path === 'string'
 ? req.path === path || req.path.startsWith(path)
 : path.test(req.path)
 );
@@ -1140,7 +1140,7 @@ next();
 }
 }
 
-// — InputValidator —
+// - InputValidator -
 class InputValidator {
 constructor() {
 this.schemas = new Map();
@@ -1149,10 +1149,10 @@ this.registerDefaultSchemas();
 
 registerDefaultSchemas() {
 this.schemas.set(
-‘generateLink’,
+'generateLink',
 Joi.object({
 url: Joi.string()
-.custom(this.validateUrl, ‘URL validation’)
+.custom(this.validateUrl, 'URL validation')
 .required()
 .max(2048),
 password: Joi.string()
@@ -1162,9 +1162,9 @@ password: Joi.string()
 /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
 ),
 maxClicks: Joi.number().integer().min(1).max(1000000),
-expiresIn: Joi.string().pattern(/^(\d+)([smhd])?$/i).default(‘30m’),
+expiresIn: Joi.string().pattern(/^(\d+)([smhd])?$/i).default('30m'),
 notes: Joi.string().max(500).custom(this.sanitizeHtml),
-linkMode: Joi.string().valid(‘short’, ‘long’, ‘auto’).default(‘short’),
+linkMode: Joi.string().valid('short', 'long', 'auto').default('short'),
 longLinkOptions: Joi.object({
 segments: Joi.number().integer().min(3).max(20),
 params: Joi.number().integer().min(5).max(50),
@@ -1176,7 +1176,7 @@ iterations: Joi.number().integer().min(1).max(5)
 })
 );
 
-```
+
 this.schemas.set(
   'adminSettings',
   Joi.object({
@@ -1210,12 +1210,12 @@ this.schemas.set(
       .max(100)
   })
 );
-```
+
 
 }
 
 validateUrl(value, helpers) {
-if (!validateUrl(value)) return helpers.error(‘any.invalid’, { message: ‘Invalid URL’ });
+if (!validateUrl(value)) return helpers.error('any.invalid', { message: 'Invalid URL' });
 return value;
 }
 
@@ -1223,19 +1223,19 @@ sanitizeHtml(value, helpers) {
 return sanitizeHtml(value, {
 allowedTags: [],
 allowedAttributes: {},
-disallowedTagsMode: ‘escape’
+disallowedTagsMode: 'escape'
 });
 }
 
 validate(schemaName, data, options = { abortEarly: false }) {
 const schema = this.schemas.get(schemaName);
-if (!schema) throw new AppError(`Unknown validation schema: ${schemaName}`, 400, ‘UNKNOWN_SCHEMA’);
+if (!schema) throw new AppError(`Unknown validation schema: ${schemaName}`, 400, 'UNKNOWN_SCHEMA');
 const { error, value } = schema.validate(data, options);
 if (error) {
 throw new ValidationError(
-‘Validation failed’,
+'Validation failed',
 error.details.map(d => ({
-field: d.path.join(’.’),
+field: d.path.join('.'),
 message: d.message
 }))
 );
@@ -1247,13 +1247,13 @@ validatePathParam(param, type, rules = {}) {
 return (req, res, next) => {
 const value = req.params[param];
 let isValid = true,
-errorMessage = ‘’;
-if (type === ‘id’) isValid = /^[a-f0-9]{32,64}$/i.test(value);
-else if (type === ‘uuid’)
+errorMessage = '';
+if (type === 'id') isValid = /^[a-f0-9]{32,64}$/i.test(value);
+else if (type === 'uuid')
 isValid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
 value
 );
-else if (type === ‘integer’) {
+else if (type === 'integer') {
 isValid = /^\d+$/.test(value);
 if (isValid && rules.min !== undefined) isValid = parseInt(value, 10) >= rules.min;
 if (isValid && rules.max !== undefined) isValid = parseInt(value, 10) <= rules.max;
@@ -1268,9 +1268,9 @@ return (req, res, next) => {
 const { error, value } = Joi.object(schema).validate(req.query, { abortEarly: false });
 if (error) {
 throw new ValidationError(
-‘Invalid query parameters’,
+'Invalid query parameters',
 error.details.map(d => ({
-field: d.path.join(’.’),
+field: d.path.join('.'),
 message: d.message
 }))
 );
@@ -1281,7 +1281,7 @@ next();
 }
 }
 
-// — TransactionManager —
+// - TransactionManager -
 class TransactionManager {
 constructor(pool) {
 this.pool = pool;
@@ -1295,16 +1295,16 @@ isolationLevel = CONFIG.DB_ISOLATION_LEVEL,
 readOnly = false
 } = options;
 try {
-await client.query(‘BEGIN’);
+await client.query('BEGIN');
 await client.query(`SET TRANSACTION ISOLATION LEVEL ${isolationLevel}`);
-if (readOnly) await client.query(‘SET TRANSACTION READ ONLY’);
+if (readOnly) await client.query('SET TRANSACTION READ ONLY');
 await client.query(`SET LOCAL statement_timeout = ${timeout}`);
 const result = await callback(client);
-await client.query(‘COMMIT’);
+await client.query('COMMIT');
 return result;
 } catch (err) {
-await client.query(‘ROLLBACK’);
-throw new DatabaseError(‘Transaction failed’, err);
+await client.query('ROLLBACK');
+throw new DatabaseError('Transaction failed', err);
 } finally {
 client.release();
 }
@@ -1314,8 +1314,8 @@ async retryTransaction(callback, options = {}) {
 const {
 maxRetries = CONFIG.DB_TRANSACTION_RETRIES,
 retryDelay = 100,
-backoff = ‘exponential’,
-…txOptions
+backoff = 'exponential',
+...txOptions
 } = options;
 let lastError;
 for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -1328,9 +1328,9 @@ if (attempt === maxRetries) {
 throw new Error(`Transaction failed after ${maxRetries} attempts: ${err.message}`);
 }
 let delay = retryDelay;
-if (backoff === ‘exponential’) {
+if (backoff === 'exponential') {
 delay = retryDelay * Math.pow(2, attempt - 1);
-} else if (backoff === ‘fibonacci’) {
+} else if (backoff === 'fibonacci') {
 delay = retryDelay * this.fibonacci(attempt);
 }
 await new Promise(resolve => setTimeout(resolve, delay));
@@ -1340,7 +1340,7 @@ throw lastError;
 }
 
 isRetryableError(err) {
-return [‘40001’, ‘40P01’, ‘55P03’, ‘57P01’].includes(err.code);
+return ['40001', '40P01', '55P03', '57P01'].includes(err.code);
 }
 
 fibonacci(n) {
@@ -1352,7 +1352,7 @@ return fib[n - 1] || 1;
 }
 }
 
-// — APIVersionManager —
+// - APIVersionManager -
 class APIVersionManager {
 constructor() {
 this.versions = new Map();
@@ -1363,7 +1363,7 @@ this.supportedVersions = CONFIG.SUPPORTED_API_VERSIONS;
 
 registerVersion(version, router, options = {}) {
 if (!this.supportedVersions.includes(version)) {
-throw new AppError(`Unsupported API version: ${version}`, 400, ‘UNSUPPORTED_VERSION’);
+throw new AppError(`Unsupported API version: ${version}`, 400, 'UNSUPPORTED_VERSION');
 }
 this.versions.set(version, {
 router,
@@ -1384,14 +1384,14 @@ return (req, res, next) => {
 let requestedVersion = this.getRequestedVersion(req);
 if (!this.isVersionSupported(requestedVersion)) {
 if (options.strict || CONFIG.API_VERSION_STRICT) {
-throw new AppError(`Unsupported API version: ${requestedVersion}`, 400, ‘UNSUPPORTED_VERSION’);
+throw new AppError(`Unsupported API version: ${requestedVersion}`, 400, 'UNSUPPORTED_VERSION');
 }
 requestedVersion = this.defaultVersion;
 }
 const versionInfo = this.versions.get(requestedVersion);
 if (versionInfo?.deprecated) {
-res.setHeader(‘X-API-Deprecated’, ‘true’);
-if (versionInfo.sunset) res.setHeader(‘X-API-Sunset’, versionInfo.sunset);
+res.setHeader('X-API-Deprecated', 'true');
+if (versionInfo.sunset) res.setHeader('X-API-Sunset', versionInfo.sunset);
 }
 req.apiVersion = requestedVersion;
 req.apiVersionInfo = versionInfo;
@@ -1401,10 +1401,10 @@ this.applyMiddlewares(req, res, middlewares, next);
 }
 
 getRequestedVersion(req) {
-const acceptHeader = req.headers.accept || ‘’;
+const acceptHeader = req.headers.accept || '';
 const versionMatch = acceptHeader.match(/version=([^;,\s]+)/);
 if (versionMatch) return versionMatch[1];
-if (req.headers[‘x-api-version’]) return req.headers[‘x-api-version’];
+if (req.headers['x-api-version']) return req.headers['x-api-version'];
 if (req.query.api_version) return String(req.query.api_version);
 return this.getLatestVersion();
 }
@@ -1457,204 +1457,204 @@ return endpoints;
 }
 
 // ==================== ENCODING/DECODING LIBRARY ====================
-const reverseString = (s) => […s].reverse().join(’’);
+const reverseString = (s) => [...s].reverse().join('');
 
 const encoderLibrary = [
 {
-name: ‘base64_standard’,
-enc: (s) => Buffer.from(s).toString(‘base64’),
-dec: (s) => Buffer.from(s, ‘base64’).toString(),
+name: 'base64_standard',
+enc: (s) => Buffer.from(s).toString('base64'),
+dec: (s) => Buffer.from(s, 'base64').toString(),
 complexity: 1
 },
 {
-name: ‘base64_url’,
-enc: (s) => Buffer.from(s).toString(‘base64url’),
-dec: (s) => Buffer.from(s, ‘base64url’).toString(),
+name: 'base64_url',
+enc: (s) => Buffer.from(s).toString('base64url'),
+dec: (s) => Buffer.from(s, 'base64url').toString(),
 complexity: 1
 },
 {
-name: ‘base64_reverse’,
-enc: (s) => Buffer.from(reverseString(s)).toString(‘base64’),
-dec: (s) => reverseString(Buffer.from(s, ‘base64’).toString()),
+name: 'base64_reverse',
+enc: (s) => Buffer.from(reverseString(s)).toString('base64'),
+dec: (s) => reverseString(Buffer.from(s, 'base64').toString()),
 complexity: 2
 },
 {
-name: ‘base64_mime’,
-enc: (s) => Buffer.from(s).toString(‘base64’).replace(/.{76}/g, ‘$&\n’),
-dec: (s) => Buffer.from(s.replace(/\n/g, ‘’), ‘base64’).toString(),
+name: 'base64_mime',
+enc: (s) => Buffer.from(s).toString('base64').replace(/.{76}/g, '$&\n'),
+dec: (s) => Buffer.from(s.replace(/\n/g, ''), 'base64').toString(),
 complexity: 2
 },
 {
-name: ‘hex_lower’,
-enc: (s) => Buffer.from(s).toString(‘hex’),
-dec: (s) => Buffer.from(s, ‘hex’).toString(),
+name: 'hex_lower',
+enc: (s) => Buffer.from(s).toString('hex'),
+dec: (s) => Buffer.from(s, 'hex').toString(),
 complexity: 1
 },
 {
-name: ‘hex_upper’,
-enc: (s) => Buffer.from(s).toString(‘hex’).toUpperCase(),
-dec: (s) => Buffer.from(s.toLowerCase(), ‘hex’).toString(),
+name: 'hex_upper',
+enc: (s) => Buffer.from(s).toString('hex').toUpperCase(),
+dec: (s) => Buffer.from(s.toLowerCase(), 'hex').toString(),
 complexity: 1
 },
 {
-name: ‘hex_reverse’,
-enc: (s) => reverseString(Buffer.from(s).toString(‘hex’)),
-dec: (s) => Buffer.from(reverseString(s), ‘hex’).toString(),
+name: 'hex_reverse',
+enc: (s) => reverseString(Buffer.from(s).toString('hex')),
+dec: (s) => Buffer.from(reverseString(s), 'hex').toString(),
 complexity: 2
 },
 {
-name: ‘rot13’,
+name: 'rot13',
 enc: (s) =>
 s.replace(/[a-zA-Z]/g, c =>
-String.fromCharCode((c <= ‘Z’ ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26)
+String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26)
 ),
 dec: (s) =>
 s.replace(/[a-zA-Z]/g, c =>
-String.fromCharCode((c <= ‘Z’ ? 90 : 122) >= (c = c.charCodeAt(0) - 13) ? c : c + 26)
+String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) - 13) ? c : c + 26)
 ),
 complexity: 2
 },
 {
-name: ‘rot5’,
+name: 'rot5',
 enc: (s) => s.replace(/[0-9]/g, c => ((parseInt(c, 10) + 5) % 10).toString()),
 dec: (s) => s.replace(/[0-9]/g, c => ((parseInt(c, 10) - 5 + 10) % 10).toString()),
 complexity: 1
 },
 {
-name: ‘rot13_rot5_combo’,
+name: 'rot13_rot5_combo',
 enc: (s) => {
 const rot13 = s.replace(/[a-zA-Z]/g, c =>
-String.fromCharCode((c <= ‘Z’ ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26)
+String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26)
 );
 return rot13.replace(/[0-9]/g, c => ((parseInt(c, 10) + 5) % 10).toString());
 },
 dec: (s) => {
 const rot5 = s.replace(/[0-9]/g, c => ((parseInt(c, 10) - 5 + 10) % 10).toString());
 return rot5.replace(/[a-zA-Z]/g, c =>
-String.fromCharCode((c <= ‘Z’ ? 90 : 122) >= (c = c.charCodeAt(0) - 13) ? c : c + 26)
+String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) - 13) ? c : c + 26)
 );
 },
 complexity: 3
 },
-{ name: ‘url_encode’, enc: encodeURIComponent, dec: decodeURIComponent, complexity: 1 },
+{ name: 'url_encode', enc: encodeURIComponent, dec: decodeURIComponent, complexity: 1 },
 {
-name: ‘double_url_encode’,
+name: 'double_url_encode',
 enc: (s) => encodeURIComponent(encodeURIComponent(s)),
 dec: (s) => decodeURIComponent(decodeURIComponent(s)),
 complexity: 2
 },
 {
-name: ‘triple_url_encode’,
+name: 'triple_url_encode',
 enc: (s) => encodeURIComponent(encodeURIComponent(encodeURIComponent(s))),
 dec: (s) => decodeURIComponent(decodeURIComponent(decodeURIComponent(s))),
 complexity: 3
 },
 {
-name: ‘ascii_shift_1’,
+name: 'ascii_shift_1',
 enc: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) + 1))
-.join(’’),
+.join(''),
 dec: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) - 1))
-.join(’’),
+.join(''),
 complexity: 1
 },
 {
-name: ‘ascii_shift_3’,
+name: 'ascii_shift_3',
 enc: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) + 3))
-.join(’’),
+.join(''),
 dec: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) - 3))
-.join(’’),
+.join(''),
 complexity: 1
 },
 {
-name: ‘ascii_shift_5’,
+name: 'ascii_shift_5',
 enc: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) + 5))
-.join(’’),
+.join(''),
 dec: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) - 5))
-.join(’’),
+.join(''),
 complexity: 1
 },
 {
-name: ‘ascii_xor’,
+name: 'ascii_xor',
 enc: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) ^ 0x2a))
-.join(’’),
+.join(''),
 dec: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => String.fromCharCode(c.charCodeAt(0) ^ 0x2a))
-.join(’’),
+.join(''),
 complexity: 2
 },
 {
-name: ‘binary_8bit’,
+name: 'binary_8bit',
 enc: (s) =>
 s
-.split(’’)
-.map(c => c.charCodeAt(0).toString(2).padStart(8, ‘0’))
-.join(’’),
+.split('')
+.map(c => c.charCodeAt(0).toString(2).padStart(8, '0'))
+.join(''),
 dec: (s) =>
 s
 .match(/.{1,8}/g)
 .map(b => String.fromCharCode(parseInt(b, 2)))
-.join(’’),
+.join(''),
 complexity: 4
 },
 {
-name: ‘binary_16bit’,
+name: 'binary_16bit',
 enc: (s) =>
 s
-.split(’’)
-.map(c => c.charCodeAt(0).toString(2).padStart(16, ‘0’))
-.join(’’),
+.split('')
+.map(c => c.charCodeAt(0).toString(2).padStart(16, '0'))
+.join(''),
 dec: (s) =>
 s
 .match(/.{1,16}/g)
 .map(b => String.fromCharCode(parseInt(b, 2)))
-.join(’’),
+.join(''),
 complexity: 4
 },
 {
-name: ‘octal’,
+name: 'octal',
 enc: (s) =>
 s
-.split(’’)
+.split('')
 .map(c => c.charCodeAt(0).toString(8))
-.join(’ ‘),
+.join(' '),
 dec: (s) =>
 s
-.split(’ ‘)
+.split(' ')
 .map(o => String.fromCharCode(parseInt(o, 8)))
-.join(’’),
+.join(''),
 complexity: 3
 },
 {
-name: ‘reverse’,
+name: 'reverse',
 enc: (s) => reverseString(s),
 dec: (s) => reverseString(s),
 complexity: 1
 },
 {
-name: ‘caesar_3’,
+name: 'caesar_3',
 enc: (s) =>
 s.replace(/[a-zA-Z]/g, c => {
 const code = c.charCodeAt(0);
@@ -1672,7 +1672,7 @@ return c;
 complexity: 2
 },
 {
-name: ‘atbash’,
+name: 'atbash',
 enc: (s) =>
 s.replace(/[a-zA-Z]/g, c => {
 const code = c.charCodeAt(0);
@@ -1690,13 +1690,13 @@ return c;
 complexity: 2
 },
 {
-name: ‘base32’,
-enc: (s) => Buffer.from(s).toString(‘base64’),
-dec: (s) => Buffer.from(s, ‘base64’).toString(),
+name: 'base32',
+enc: (s) => Buffer.from(s).toString('base64'),
+dec: (s) => Buffer.from(s, 'base64').toString(),
 complexity: 3
 },
 {
-name: ‘rot47’,
+name: 'rot47',
 enc: (s) =>
 s.replace(/[!-~]/g, c => String.fromCharCode(33 + ((c.charCodeAt(0) - 33 + 47) % 94))),
 dec: (s) =>
@@ -1705,14 +1705,14 @@ complexity: 2
 }
 ];
 
-// — Compression wrapper with actual gzip —
+// - Compression wrapper with actual gzip -
 function compressData(data) {
 if (!CONFIG.ENABLE_COMPRESSION) return { data, compressed: false };
 try {
 const compressed = zlib.gzipSync(data);
-return { data: compressed.toString(‘base64’), compressed: true };
+return { data: compressed.toString('base64'), compressed: true };
 } catch (err) {
-logger.warn(‘Compression failed:’, sanitizeLogEntry(err.message));
+logger.warn('Compression failed:', sanitizeLogEntry(err.message));
 return { data, compressed: false };
 }
 }
@@ -1720,10 +1720,10 @@ return { data, compressed: false };
 function decompressData(data, wasCompressed) {
 if (!wasCompressed) return data;
 try {
-const decompressed = zlib.gunzipSync(Buffer.from(data, ‘base64’));
+const decompressed = zlib.gunzipSync(Buffer.from(data, 'base64'));
 return decompressed.toString();
 } catch (err) {
-logger.warn(‘Decompression failed:’, sanitizeLogEntry(err.message));
+logger.warn('Decompression failed:', sanitizeLogEntry(err.message));
 return data;
 }
 }
@@ -1734,7 +1734,7 @@ try {
 const encrypted = keyManager.encrypt(data);
 return Buffer.from(
 JSON.stringify({
-type: ‘encrypted’,
+type: 'encrypted',
 data: encrypted.data,
 iv: encrypted.iv,
 authTag: encrypted.authTag,
@@ -1742,9 +1742,9 @@ keyId: encrypted.keyId,
 version: encrypted.version,
 timestamp: Date.now()
 })
-).toString(‘base64’);
+).toString('base64');
 } catch (err) {
-logger.warn(‘Encryption failed:’, sanitizeLogEntry(err.message));
+logger.warn('Encryption failed:', sanitizeLogEntry(err.message));
 return data;
 }
 }
@@ -1752,12 +1752,12 @@ return data;
 function decryptData(data) {
 if (!CONFIG.ENABLE_ENCRYPTION || !keyManager?.initialized) return data;
 try {
-if (typeof data !== ‘string’) return data;
+if (typeof data !== 'string') return data;
 let parsed;
 try {
-const decoded = Buffer.from(data, ‘base64’).toString();
+const decoded = Buffer.from(data, 'base64').toString();
 parsed = JSON.parse(decoded);
-if (parsed.type !== ‘encrypted’) return data;
+if (parsed.type !== 'encrypted') return data;
 } catch (e) {
 return data;
 }
@@ -1772,14 +1772,14 @@ const keyInfo = keyManager.getKeyInfo(parsed.keyId);
 if (keyInfo && keyInfo.expiresAt - Date.now() < 86400000) {
 setImmediate(() => {
 reencryptStoredData(parsed).catch(e =>
-logger.error(‘Failed to re-encrypt data:’, sanitizeLogEntry(e.message))
+logger.error('Failed to re-encrypt data:', sanitizeLogEntry(e.message))
 );
 });
 }
 return decrypted;
 } catch (err) {
-logger.error(‘Decryption failed:’, sanitizeLogEntry(err.message));
-throw new AppError(‘Decryption failed’, 500, ‘DECRYPT_ERROR’);
+logger.error('Decryption failed:', sanitizeLogEntry(err.message));
+throw new AppError('Decryption failed', 500, 'DECRYPT_ERROR');
 }
 }
 
@@ -1795,13 +1795,13 @@ version: oldEncrypted.version
 },
 oldEncrypted.keyId
 );
-logger.info(‘Data re-encrypted with new key’, {
+logger.info('Data re-encrypted with new key', {
 oldKey: oldEncrypted.keyId,
 newKey: newEncrypted.keyId
 });
 return newEncrypted;
 } catch (e) {
-logger.error(‘Re-encryption failed:’, sanitizeLogEntry(e.message));
+logger.error('Re-encryption failed:', sanitizeLogEntry(e.message));
 throw e;
 }
 }
@@ -1824,16 +1824,16 @@ noise: [],
 iterations,
 complexity: 0,
 timestamp: Date.now(),
-version: ‘4.3.0’
+version: '4.3.0'
 };
 
 for (let iter = 0; iter < iterations; iter++) {
 const noiseBytes = minNoiseBytes + crypto.randomInt(0, maxNoiseBytes - minNoiseBytes + 1);
-const noise = crypto.randomBytes(noiseBytes).toString(‘base64url’);
+const noise = crypto.randomBytes(noiseBytes).toString('base64url');
 result = noise + result + noise;
 encodingMetadata.noise.push(noise);
 
-```
+
 const shuffled = [...encoderLibrary].sort(() => Math.random() - 0.5);
 const layerCount = minLayers + crypto.randomInt(0, maxLayers - minLayers + 1);
 const selectedLayers = shuffled.slice(0, layerCount);
@@ -1850,7 +1850,7 @@ if (iter < iterations - 1) {
   const reversed = Buffer.from(result).reverse().toString('utf8').substring(0, 10);
   result = result + separator + reversed;
 }
-```
+
 
 }
 
@@ -1869,14 +1869,14 @@ result = encodeURIComponent(result);
 result = encodeURIComponent(result);
 result = encodeURIComponent(result);
 
-encodingComplexityGauge.labels(‘complexity’).set(encodingMetadata.complexity);
-businessMetrics.encodingQuality.labels(‘complexity’).set(encodingMetadata.complexity);
-businessMetrics.encodingQuality.labels(‘layers’).set(encodingLayers.length);
-businessMetrics.encodingQuality.labels(‘iterations’).set(iterations);
+encodingComplexityGauge.labels('complexity').set(encodingMetadata.complexity);
+businessMetrics.encodingQuality.labels('complexity').set(encodingMetadata.complexity);
+businessMetrics.encodingQuality.labels('layers').set(encodingLayers.length);
+businessMetrics.encodingQuality.labels('iterations').set(iterations);
 
 const encodingTime = performance.now() - startTime;
 encodingDurationHistogram
-.labels(options.mode || ‘unknown’, layerCount.toString(), iterations.toString())
+.labels(options.mode || 'unknown', layerCount.toString(), iterations.toString())
 .observe(encodingTime / 1000);
 
 return {
@@ -1897,7 +1897,7 @@ result = decodeURIComponent(result);
 result = decodeURIComponent(result);
 result = decodeURIComponent(result);
 
-```
+
 if (metadata.encrypted) result = decryptData(result);
 if (metadata.compressed) result = decompressData(result, true);
 
@@ -1923,26 +1923,26 @@ stats.encodingStats.avgDecodeTime =
   stats.encodingStats.totalDecodeTime;
 
 return result;
-```
+
 
 } catch (err) {
-throw new AppError(‘Decoding failed’, 400, ‘DECODE_ERROR’);
+throw new AppError('Decoding failed', 400, 'DECODE_ERROR');
 }
 }
 
 function generateShortLink(targetUrl, req) {
 const startTime = performance.now();
-const { encoded } = advancedMultiLayerEncode(targetUrl + ‘#’ + Date.now(), {
+const { encoded } = advancedMultiLayerEncode(targetUrl + '#' + Date.now(), {
 minLayers: 2,
 maxLayers: 2,
 iterations: 1,
-mode: ‘short’
+mode: 'short'
 });
-const id = crypto.randomBytes(16).toString(‘hex’);
+const id = crypto.randomBytes(16).toString('hex');
 const url = `${req.protocol}://${req.get('host')}/v/${id}`;
 stats.encodingStats.totalEncoded++;
 stats.linkModes.short++;
-linkModeCounter.inc({ mode: ‘short’ });
+linkModeCounter.inc({ mode: 'short' });
 
 return {
 url,
@@ -1957,13 +1957,13 @@ encodingTime: performance.now() - startTime
 async function generateLongLink(targetUrl, req, options = {}) {
 const startTime = performance.now();
 const cacheKey = crypto
-.createHash(‘sha256’)
+.createHash('sha256')
 .update(targetUrl + JSON.stringify(options) + req.ip)
-.digest(‘hex’);
-const cached = cacheGet(encodingResultCache, ‘encoding’, cacheKey);
+.digest('hex');
+const cached = cacheGet(encodingResultCache, 'encoding', cacheKey);
 if (cached) {
 stats.encodingStats.cacheHits++;
-cacheHitRate.inc({ cache: ‘encoding’ });
+cacheHitRate.inc({ cache: 'encoding' });
 return cached;
 }
 
@@ -1977,63 +1977,63 @@ iterations = CONFIG.MAX_ENCODING_ITERATIONS
 } = options;
 
 stats.encodingStats.cacheMisses++;
-cacheMissRate.inc({ cache: ‘encoding’ });
+cacheMissRate.inc({ cache: 'encoding' });
 
 const timestamp = Date.now();
-const randomId = crypto.randomBytes(12).toString(‘hex’);
-const sessionMarker = crypto.randomBytes(4).toString(‘hex’);
+const randomId = crypto.randomBytes(12).toString('hex');
+const sessionMarker = crypto.randomBytes(4).toString('hex');
 
 // Use hash of target instead of plaintext to avoid leaking URL in metadata
-const targetHash = crypto.createHash(‘sha256’).update(targetUrl).digest(‘hex’).substring(0, 32);
+const targetHash = crypto.createHash('sha256').update(targetUrl).digest('hex').substring(0, 32);
 const noisyTarget = `${targetHash}#${randomId}-${timestamp}-${sessionMarker}`;
 
 const cacheKey2 = crypto
-.createHash(‘sha256’)
+.createHash('sha256')
 .update(noisyTarget + segments + params + minLayers + maxLayers + iterations)
-.digest(‘hex’);
-const cached2 = cacheGet(encodingCache, ‘encoding’, cacheKey2);
+.digest('hex');
+const cached2 = cacheGet(encodingCache, 'encoding', cacheKey2);
 if (cached2) {
 stats.encodingStats.cacheHits++;
-cacheHitRate.inc({ cache: ‘encoding’ });
+cacheHitRate.inc({ cache: 'encoding' });
 return cached2;
 }
 
 stats.encodingStats.cacheMisses++;
-cacheMissRate.inc({ cache: ‘encoding’ });
+cacheMissRate.inc({ cache: 'encoding' });
 
 const { encoded, layers, metadata, complexity } = advancedMultiLayerEncode(noisyTarget, {
 minLayers,
 maxLayers,
 iterations,
-mode: ‘long’
+mode: 'long'
 });
 
 const encodingMetadata = { layers, metadata, complexity, timestamp, randomId };
-const metadataEnc = Buffer.from(JSON.stringify(encodingMetadata)).toString(‘base64url’);
+const metadataEnc = Buffer.from(JSON.stringify(encodingMetadata)).toString('base64url');
 
 const pathSegments = [];
 const segmentPatterns = [
-() => crypto.randomBytes(12).toString(‘hex’),
+() => crypto.randomBytes(12).toString('hex'),
 () =>
 Math.random().toString(36).substring(2, 15) +
 Math.random().toString(36).substring(2, 10).toUpperCase(),
 () => {
 const words = [
-‘verify’,
-‘session’,
-‘auth’,
-‘secure’,
-‘gate’,
-‘access’,
-‘token’,
-‘portal’,
-‘gateway’,
-‘endpoint’
+'verify',
+'session',
+'auth',
+'secure',
+'gate',
+'access',
+'token',
+'portal',
+'gateway',
+'endpoint'
 ];
-return words[Math.floor(Math.random() * words.length)] + crypto.randomBytes(6).toString(‘hex’);
+return words[Math.floor(Math.random() * words.length)] + crypto.randomBytes(6).toString('hex');
 },
-() => ‘id_’ + crypto.randomBytes(8).toString(‘base64url’),
-() => ‘ref_’ + Date.now().toString(36) + Math.random().toString(36).substring(2, 7)
+() => 'id_' + crypto.randomBytes(8).toString('base64url'),
+() => 'ref_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7)
 ];
 
 for (let i = 0; i < segments; i++) {
@@ -2044,69 +2044,69 @@ const path = `/r/${pathSegments.join('/')}/${crypto.randomBytes(24).toString('he
 
 const paramList = [];
 const paramKeys = [
-‘sid’,
-‘tok’,
-‘ref’,
-‘utm_source’,
-‘utm_medium’,
-‘utm_campaign’,
-‘clid’,
-‘ver’,
-‘ts’,
-‘hmac’,
-‘nonce’,
-‘_t’,
-‘cid’,
-‘fid’,
-‘l’,
-‘sig’,
-‘key’,
-‘state’,
-‘code’,
-‘session’,
-‘token’,
-‘auth’,
-‘access’,
-‘refresh’,
-‘expires’,
-‘redirect’,
-‘return’,
-‘callback’,
-‘next’,
-‘continue’,
-‘goto’,
-‘dest’,
-‘target’,
-‘url’,
-‘link’,
-‘goto_url’,
-‘redirect_uri’,
-‘response_type’,
-‘client_id’,
-‘scope’,
-‘grant_type’,
-‘username’,
-‘email’,
-‘phone’,
-‘country’,
-‘lang’,
-‘locale’
+'sid',
+'tok',
+'ref',
+'utm_source',
+'utm_medium',
+'utm_campaign',
+'clid',
+'ver',
+'ts',
+'hmac',
+'nonce',
+'_t',
+'cid',
+'fid',
+'l',
+'sig',
+'key',
+'state',
+'code',
+'session',
+'token',
+'auth',
+'access',
+'refresh',
+'expires',
+'redirect',
+'return',
+'callback',
+'next',
+'continue',
+'goto',
+'dest',
+'target',
+'url',
+'link',
+'goto_url',
+'redirect_uri',
+'response_type',
+'client_id',
+'scope',
+'grant_type',
+'username',
+'email',
+'phone',
+'country',
+'lang',
+'locale'
 ];
 
 const fingerprint = includeFingerprint
 ? crypto
-.createHash(‘sha256’)
-.update((req.headers[‘user-agent’] || ‘’) + Date.now())
-.digest(‘hex’)
+.createHash('sha256')
+.update((req.headers['user-agent'] || '') + Date.now())
+.digest('hex')
 .substring(0, 16)
-: ‘’;
+: '';
 
 for (let i = 0; i < params; i++) {
 const keyIndex = i % paramKeys.length;
-const key = paramKeys[keyIndex] + (i > 15 ? `_${Math.floor(i / 2)}` : ‘’);
+const key = paramKeys[keyIndex] + (i > 15 ? `_${Math.floor(i / 2)}` : '');
 let value;
 
-```
+
 if (key.startsWith('l') && !key.includes('_')) value = metadataEnc;
 else if (key === 'fp' && fingerprint) value = fingerprint;
 else if (key === 'ts' || key === '_t')
@@ -2129,11 +2129,11 @@ else
     .replace(/=/g, '');
 
 paramList.push(`${key}=${value}`);
-```
+
 
 }
 
-let shuffledParams = […paramList];
+let shuffledParams = [...paramList];
 for (let i = 0; i < 3; i++) shuffledParams = shuffledParams.sort(() => Math.random() - 0.5);
 
 const url = `${req.protocol}://${req.get('host')}${path}?p=${encoded}&${shuffledParams.join('&')}&v=${Math.floor(Math.random() * 99)}.${Math.floor(Math.random() * 99)}.${Math.floor(Math.random() * 999)}`;
@@ -2149,7 +2149,7 @@ stats.encodingStats.avgComplexity =
 (stats.encodingStats.totalEncoded + 1);
 stats.encodingStats.totalEncoded++;
 stats.linkModes.long++;
-linkModeCounter.inc({ mode: ‘long’ });
+linkModeCounter.inc({ mode: 'long' });
 
 const result = {
 url,
@@ -2166,8 +2166,8 @@ encodingTime: performance.now() - startTime
 encodingMetadata
 };
 
-cacheSet(encodingCache, ‘encoding’, cacheKey2, result, 3600);
-if (!targetUrl.includes(‘private’) && !targetUrl.includes(‘internal’)) {
+cacheSet(encodingCache, 'encoding', cacheKey2, result, 3600);
+if (!targetUrl.includes('private') && !targetUrl.includes('internal')) {
 encodingResultCache.set(cacheKey, result);
 }
 
@@ -2177,12 +2177,12 @@ return result;
 async function decodeLongLink(req) {
 const startTime = performance.now();
 try {
-const query = req.url.split(’?’)[1] || ‘’;
+const query = req.url.split('?')[1] || '';
 const params = new URLSearchParams(query);
-const enc = params.get(‘p’) || ‘’;
-let metadataEnc = ‘’;
+const enc = params.get('p') || '';
+let metadataEnc = '';
 
-```
+
 for (const [key, value] of params.entries()) {
   if (key.startsWith('l') && !key.includes('_') && value.length > 100) {
     metadataEnc = value;
@@ -2226,31 +2226,31 @@ return {
     complexity: metadata?.complexity || 0
   }
 };
-```
+
 
 } catch (err) {
-logger.error(‘Decode error:’, sanitizeLogEntry(err.message));
-return { success: false, reason: ‘decode_error’ };
+logger.error('Decode error:', sanitizeLogEntry(err.message));
+return { success: false, reason: 'decode_error' };
 }
 }
 
 // ==================== BOT DETECTION & GEO ====================
 function getDeviceInfo(req) {
-const ua = req.headers[‘user-agent’] || ‘’;
-const cacheKey = crypto.createHash(‘md5’).update(ua.substring(0, 200)).digest(‘hex’);
-const cached = cacheGet(deviceCache, ‘device’, cacheKey);
+const ua = req.headers['user-agent'] || '';
+const cacheKey = crypto.createHash('md5').update(ua.substring(0, 200)).digest('hex');
+const cached = cacheGet(deviceCache, 'device', cacheKey);
 if (cached) return cached;
 
 const parser = new uaParser(ua);
 const result = parser.getResult();
 const deviceInfo = {
-type: ‘desktop’,
-brand: result.device.vendor || ‘unknown’,
-model: result.device.model || ‘unknown’,
-os: result.os.name || ‘unknown’,
-osVersion: result.os.version || ‘unknown’,
-browser: result.browser.name || ‘unknown’,
-browserVersion: result.browser.version || ‘unknown’,
+type: 'desktop',
+brand: result.device.vendor || 'unknown',
+model: result.device.model || 'unknown',
+os: result.os.name || 'unknown',
+osVersion: result.os.version || 'unknown',
+browser: result.browser.name || 'unknown',
+browserVersion: result.browser.version || 'unknown',
 isMobile: false,
 isTablet: false,
 isBot: false,
@@ -2259,121 +2259,121 @@ score: 0
 
 const uaLower = ua.toLowerCase();
 const botPatterns = [
-‘headless’,
-‘phantom’,
-‘slurp’,
-‘zgrab’,
-‘scanner’,
-‘bot’,
-‘crawler’,
-‘spider’,
-‘burp’,
-‘sqlmap’,
-‘curl’,
-‘wget’,
-‘python’,
-‘perl’,
-‘ruby’,
-‘go-http-client’,
-‘java’,
-‘okhttp’,
-‘scrapy’,
-‘httpclient’,
-‘axios’,
-‘node-fetch’,
-‘php’,
-‘libwww’,
-‘fetch’,
-‘ahrefs’,
-‘semrush’,
-‘puppeteer’,
-‘selenium’,
-‘playwright’,
-‘cypress’,
-‘chrome-lighthouse’,
-‘lighthouse’,
-‘pagespeed’,
-‘gtmetrix’,
-‘googlebot’,
-‘bingbot’,
-‘duckduckbot’,
-‘baiduspider’,
-‘yandexbot’,
-‘facebookexternalhit’,
-‘twitterbot’,
-‘linkedinbot’,
-‘whatsapp’,
-‘telegram’,
-‘slack’,
-‘discord’,
-‘skype’,
-‘facebook’,
-‘instagram’,
-‘pinterest’,
-‘reddit’,
-‘tumblr’,
-‘flipboard’
+'headless',
+'phantom',
+'slurp',
+'zgrab',
+'scanner',
+'bot',
+'crawler',
+'spider',
+'burp',
+'sqlmap',
+'curl',
+'wget',
+'python',
+'perl',
+'ruby',
+'go-http-client',
+'java',
+'okhttp',
+'scrapy',
+'httpclient',
+'axios',
+'node-fetch',
+'php',
+'libwww',
+'fetch',
+'ahrefs',
+'semrush',
+'puppeteer',
+'selenium',
+'playwright',
+'cypress',
+'chrome-lighthouse',
+'lighthouse',
+'pagespeed',
+'gtmetrix',
+'googlebot',
+'bingbot',
+'duckduckbot',
+'baiduspider',
+'yandexbot',
+'facebookexternalhit',
+'twitterbot',
+'linkedinbot',
+'whatsapp',
+'telegram',
+'slack',
+'discord',
+'skype',
+'facebook',
+'instagram',
+'pinterest',
+'reddit',
+'tumblr',
+'flipboard'
 ];
 
 if (botPatterns.some(p => uaLower.includes(p))) {
-deviceInfo.type = ‘bot’;
+deviceInfo.type = 'bot';
 deviceInfo.isBot = true;
 deviceInfo.score = 100;
-cacheSet(deviceCache, ‘device’, cacheKey, deviceInfo);
+cacheSet(deviceCache, 'device', cacheKey, deviceInfo);
 stats.byDevice.bot = (stats.byDevice.bot || 0) + 1;
 return deviceInfo;
 }
 
 if (
-result.device.type === ‘mobile’ ||
+result.device.type === 'mobile' ||
 /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)
 ) {
 if (
-result.device.type === ‘tablet’ ||
+result.device.type === 'tablet' ||
 /Tablet|iPad|PlayBook|Silk|Kindle|(Android(?!.*Mobile))/i.test(ua)
 ) {
-deviceInfo.type = ‘tablet’;
+deviceInfo.type = 'tablet';
 deviceInfo.isTablet = true;
 } else {
-deviceInfo.type = ‘mobile’;
+deviceInfo.type = 'mobile';
 deviceInfo.isMobile = true;
 }
 }
 
 if (deviceInfo.isMobile) {
-if (deviceInfo.brand !== ‘unknown’) deviceInfo.score -= 10;
-if (deviceInfo.model !== ‘unknown’) deviceInfo.score -= 10;
-if (deviceInfo.os !== ‘unknown’) deviceInfo.score -= 5;
-if (deviceInfo.browser !== ‘unknown’) deviceInfo.score -= 5;
+if (deviceInfo.brand !== 'unknown') deviceInfo.score -= 10;
+if (deviceInfo.model !== 'unknown') deviceInfo.score -= 10;
+if (deviceInfo.os !== 'unknown') deviceInfo.score -= 5;
+if (deviceInfo.browser !== 'unknown') deviceInfo.score -= 5;
 if (
-deviceInfo.browser.includes(‘Safari’) ||
-deviceInfo.browser.includes(‘Chrome’) ||
-deviceInfo.browser.includes(‘Firefox’) ||
-deviceInfo.browser.includes(‘Edge’)
+deviceInfo.browser.includes('Safari') ||
+deviceInfo.browser.includes('Chrome') ||
+deviceInfo.browser.includes('Firefox') ||
+deviceInfo.browser.includes('Edge')
 )
 deviceInfo.score -= 15;
 if (
-deviceInfo.os.includes(‘iOS’) ||
-deviceInfo.os.includes(‘Android’) ||
-deviceInfo.os.includes(‘iPadOS’)
+deviceInfo.os.includes('iOS') ||
+deviceInfo.os.includes('Android') ||
+deviceInfo.os.includes('iPadOS')
 )
 deviceInfo.score -= 15;
 if (
-deviceInfo.brand.includes(‘Apple’) ||
-deviceInfo.brand.includes(‘Samsung’) ||
-deviceInfo.brand.includes(‘Huawei’) ||
-deviceInfo.brand.includes(‘Xiaomi’) ||
-deviceInfo.brand.includes(‘Google’) ||
-deviceInfo.brand.includes(‘OnePlus’) ||
-deviceInfo.brand.includes(‘Oppo’) ||
-deviceInfo.brand.includes(‘Vivo’) ||
-deviceInfo.brand.includes(‘Motorola’) ||
-deviceInfo.brand.includes(‘Nokia’)
+deviceInfo.brand.includes('Apple') ||
+deviceInfo.brand.includes('Samsung') ||
+deviceInfo.brand.includes('Huawei') ||
+deviceInfo.brand.includes('Xiaomi') ||
+deviceInfo.brand.includes('Google') ||
+deviceInfo.brand.includes('OnePlus') ||
+deviceInfo.brand.includes('Oppo') ||
+deviceInfo.brand.includes('Vivo') ||
+deviceInfo.brand.includes('Motorola') ||
+deviceInfo.brand.includes('Nokia')
 )
 deviceInfo.score -= 20;
 }
 
-cacheSet(deviceCache, ‘device’, cacheKey, deviceInfo);
+cacheSet(deviceCache, 'device', cacheKey, deviceInfo);
 stats.byDevice[deviceInfo.type] = (stats.byDevice[deviceInfo.type] || 0) + 1;
 return deviceInfo;
 }
@@ -2382,7 +2382,7 @@ function isLikelyBot(req) {
 const deviceInfo = req.deviceInfo;
 if (deviceInfo.isBot) {
 stats.botBlocks++;
-botBlocks.inc({ reason: ‘explicit_bot’ });
+botBlocks.inc({ reason: 'explicit_bot' });
 return true;
 }
 
@@ -2390,39 +2390,39 @@ const h = req.headers;
 let score = deviceInfo.score;
 const reasons = [];
 
-if (!h[‘sec-ch-ua’] || !h[‘sec-ch-ua-mobile’] || !h[‘sec-ch-ua-platform’]) {
+if (!h['sec-ch-ua'] || !h['sec-ch-ua-mobile'] || !h['sec-ch-ua-platform']) {
 score += 25;
-reasons.push(‘missing_sec_headers’);
+reasons.push('missing_sec_headers');
 }
-if (!h[‘accept’] || !h[‘accept-language’] || (h[‘accept-language’] && h[‘accept-language’].length < 5)) {
+if (!h['accept'] || !h['accept-language'] || (h['accept-language'] && h['accept-language'].length < 5)) {
 score += 20;
-reasons.push(‘missing_accept_headers’);
+reasons.push('missing_accept_headers');
 }
 if (Object.keys(h).length < 15) {
 score += 15;
-reasons.push(‘minimal_headers’);
+reasons.push('minimal_headers');
 }
-if (!h[‘referer’] && req.method === ‘GET’) {
+if (!h['referer'] && req.method === 'GET') {
 score += 10;
-reasons.push(‘no_referer’);
+reasons.push('no_referer');
 }
-if (h[‘user-agent’] && h[‘user-agent’].includes(‘HeadlessChrome’)) {
+if (h['user-agent'] && h['user-agent'].includes('HeadlessChrome')) {
 score += 30;
-reasons.push(‘headless_chrome’);
+reasons.push('headless_chrome');
 }
-if (h[‘user-agent’] && (h[‘user-agent’].includes(‘selenium’) || h[‘user-agent’].includes(‘webdriver’))) {
+if (h['user-agent'] && (h['user-agent'].includes('selenium') || h['user-agent'].includes('webdriver'))) {
 score += 40;
-reasons.push(‘automation_tool’);
+reasons.push('automation_tool');
 }
 if (!req.cookies || Object.keys(req.cookies).length === 0) {
 score += 15;
-reasons.push(‘no_cookies’);
+reasons.push('no_cookies');
 }
 
 const isBot = score >= 65;
 if (isBot) {
 stats.botBlocks++;
-botBlocks.inc({ reason: reasons[0] || ‘unknown’ });
+botBlocks.inc({ reason: reasons[0] || 'unknown' });
 reasons.forEach(r => {
 stats.byBotReason[r] = (stats.byBotReason[r] || 0) + 1;
 });
@@ -2435,32 +2435,32 @@ const geoApiBreakerOptions = {
 timeout: CONFIG.GEO_VALIDATION_TIMEOUT,
 errorThresholdPercentage: 50,
 resetTimeout: 30000,
-name: ‘geoApiBreakerOptions’
+name: 'geoApiBreakerOptions'
 };
 
 let geoApiBreaker;
 
 async function getCountryCode(req) {
 const ip =
-req.headers[‘x-forwarded-for’]?.split(’,’)[0]?.trim() || req.ip || ‘0.0.0.0’;
+req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || '0.0.0.0';
 
 if (
-ip.startsWith(‘10.’) ||
-ip.startsWith(‘192.168.’) ||
-ip === ‘127.0.0.1’ ||
-ip === ‘::1’ ||
-ip === ‘0.0.0.0’
+ip.startsWith('10.') ||
+ip.startsWith('192.168.') ||
+ip === '127.0.0.1' ||
+ip === '::1' ||
+ip === '0.0.0.0'
 ) {
-return ‘PRIVATE’;
+return 'PRIVATE';
 }
 
-const cc = cacheGet(geoCache, ‘geo’, ip);
+const cc = cacheGet(geoCache, 'geo', ip);
 if (cc) return cc;
 
 const failKey = `fail:${ip}`;
-const failCount = cacheGet(failCache, ‘fail’, failKey) || 0;
+const failCount = cacheGet(failCache, 'fail', failKey) || 0;
 if (failCount >= CONFIG.GEO_VALIDATION_FAILURE_THRESHOLD || !CONFIG.IPINFO_TOKEN) {
-return ‘XX’;
+return 'XX';
 }
 
 if (!geoApiBreaker) {
@@ -2480,22 +2480,22 @@ try {
 const data = await geoApiBreaker.fire(ip);
 const countryCode = data.country?.toUpperCase();
 if (countryCode?.match(/^[A-Z]{2}$/)) {
-cacheSet(geoCache, ‘geo’, ip, countryCode);
+cacheSet(geoCache, 'geo', ip, countryCode);
 stats.byCountry[countryCode] = (stats.byCountry[countryCode] || 0) + 1;
 return countryCode;
 }
 } catch (e) {
-logger.warn(‘Geo API failed for IP:’, sanitizeLogEntry(ip));
+logger.warn('Geo API failed for IP:', sanitizeLogEntry(ip));
 const newFailCount = failCount + 1;
-cacheSet(failCache, ‘fail’, failKey, newFailCount);
+cacheSet(failCache, 'fail', failKey, newFailCount);
 }
 
-return ‘XX’;
+return 'XX';
 }
 
 // ==================== DATABASE HELPERS ====================
 async function queryWithTimeout(query, params, options = {}) {
-if (!dbPool) throw new AppError(‘Database not available’, 500, ‘DB_UNAVAILABLE’);
+if (!dbPool) throw new AppError('Database not available', 500, 'DB_UNAVAILABLE');
 
 const client = await dbPool.connect();
 const timeout = options.timeout || CONFIG.DB_QUERY_TIMEOUT;
@@ -2507,13 +2507,13 @@ const result = await Promise.race([
 client.query(query, params),
 new Promise((_, reject) =>
 setTimeout(
-() => reject(new AppError(‘Query timeout’, 504, ‘QUERY_TIMEOUT’)),
+() => reject(new AppError('Query timeout', 504, 'QUERY_TIMEOUT')),
 timeout
 )
 )
 ]);
 
-```
+
 const duration = performance.now() - startTime;
 if (duration > CONFIG.SLOW_QUERY_THRESHOLD) {
   slowQueryMetrics.labels(query.substring(0, 50)).observe(duration / 1000);
@@ -2524,7 +2524,7 @@ if (duration > CONFIG.SLOW_QUERY_THRESHOLD) {
 }
 
 return result;
-```
+
 
 } finally {
 client.release();
@@ -2534,9 +2534,9 @@ client.release();
 async function logToDatabase(entry) {
 if (!dbPool) return;
 try {
-await queryWithTimeout(‘INSERT INTO logs (data) VALUES ($1)’, [JSON.stringify(entry)]);
+await queryWithTimeout('INSERT INTO logs (data) VALUES ($1)', [JSON.stringify(entry)]);
 } catch (e) {
-if (CONFIG.DEBUG) logger.debug(‘Database log failed:’, sanitizeLogEntry(e.message));
+if (CONFIG.DEBUG) logger.debug('Database log failed:', sanitizeLogEntry(e.message));
 }
 }
 
@@ -2574,11 +2574,11 @@ async function initCore() {
 await fs.mkdir(logDir, { recursive: true });
 await fs.mkdir(CONFIG.ENCRYPTION_KEY_STORAGE_PATH, { recursive: true });
 
-if (CONFIG.DATABASE_URL && CONFIG.DATABASE_URL.startsWith(‘postgresql://’)) {
+if (CONFIG.DATABASE_URL && CONFIG.DATABASE_URL.startsWith('postgresql://')) {
 try {
 dbPool = new Pool({
 connectionString: CONFIG.DATABASE_URL,
-ssl: CONFIG.NODE_ENV === ‘production’ ? { rejectUnauthorized: false } : false,
+ssl: CONFIG.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 max: CONFIG.DB_POOL_MAX,
 min: CONFIG.DB_POOL_MIN,
 idleTimeoutMillis: CONFIG.DB_IDLE_TIMEOUT,
@@ -2587,7 +2587,7 @@ statement_timeout: CONFIG.DB_QUERY_TIMEOUT,
 idle_in_transaction_session_timeout: CONFIG.DB_TRANSACTION_TIMEOUT
 });
 
-```
+
   txManager = new TransactionManager(dbPool);
   await createTables();
   logger.info('✅ Database connected');
@@ -2596,18 +2596,18 @@ idle_in_transaction_session_timeout: CONFIG.DB_TRANSACTION_TIMEOUT
   if (CONFIG.NODE_ENV === 'production') throw e;
   logger.warn('⚠️ Running in degraded mode without database');
 }
-```
+
 
 }
 
-if (CONFIG.REDIS_URL && CONFIG.REDIS_URL.startsWith(‘redis://’)) {
+if (CONFIG.REDIS_URL && CONFIG.REDIS_URL.startsWith('redis://')) {
 try {
 redisClient = new Redis(CONFIG.REDIS_URL, {
 retryStrategy: times => Math.min(times * 100, 3000),
 connectTimeout: 10000
 });
 
-```
+
   redisClient.on('error', e => {
     logger.warn('Redis error:', sanitizeLogEntry(e.message));
   });
@@ -2668,10 +2668,10 @@ connectTimeout: 10000
   sessionStore = new (require('express-session').MemoryStore)();
   logger.warn('⚠️ Using in-memory session store');
 }
-```
+
 
 } else {
-sessionStore = new (require(‘express-session’).MemoryStore)();
+sessionStore = new (require('express-session').MemoryStore)();
 }
 
 if (CONFIG.ENABLE_ENCRYPTION) {
@@ -2702,10 +2702,10 @@ globalIntervals.memoryMonitor = setInterval(() => {
 const mem = process.memoryUsage();
 stats.realtime.currentMemory = mem.heapUsed;
 stats.system.memory = (mem.heapUsed / mem.heapTotal) * 100;
-memoryUsageGauge.labels(‘rss’).set(mem.rss);
-memoryUsageGauge.labels(‘heapUsed’).set(mem.heapUsed);
-memoryUsageGauge.labels(‘heapTotal’).set(mem.heapTotal);
-memoryUsageGauge.labels(‘external’).set(mem.external);
+memoryUsageGauge.labels('rss').set(mem.rss);
+memoryUsageGauge.labels('heapUsed').set(mem.heapUsed);
+memoryUsageGauge.labels('heapTotal').set(mem.heapTotal);
+memoryUsageGauge.labels('external').set(mem.external);
 }, 5000);
 
 globalIntervals.statsCleanup = setInterval(() => {
@@ -2715,11 +2715,11 @@ if (stats.performance.responseTimes.length > MAX_HISTORY) {
 stats.performance.responseTimes = stats.performance.responseTimes.slice(-MAX_HISTORY);
 }
 
-```
+
 // Prune lastMinute
 const oneMinuteAgo = Date.now() - 60000;
 stats.realtime.lastMinute = stats.realtime.lastMinute.filter(t => t > oneMinuteAgo);
-```
+
 
 }, 60000);
 
@@ -2728,9 +2728,9 @@ const analysis = memoryLeakDetector.takeSnapshot();
 if (analysis) {
 stats.memoryLeak.detected = analysis.detected;
 stats.memoryLeak.growthRate = analysis.growthRate;
-memoryLeakDetected.labels(‘detected’).set(analysis.detected ? 1 : 0);
+memoryLeakDetected.labels('detected').set(analysis.detected ? 1 : 0);
 
-```
+
   if (analysis.detected && analysis.severity === 'critical') {
     logger.error('⚠️ CRITICAL MEMORY LEAK DETECTED', {
       growthRate: analysis.growthRate,
@@ -2754,13 +2754,13 @@ memoryLeakDetected.labels(‘detected’).set(analysis.detected ? 1 : 0);
     }
   }
 }
-```
+
 
 }, 60000);
 
 // Log analytics periodically
 globalIntervals.statsLog = setInterval(() => {
-logger.info(‘📊 Stats snapshot’, {
+logger.info('📊 Stats snapshot', {
 totalRequests: stats.totalRequests,
 botBlocks: stats.botBlocks,
 successfulRedirects: stats.successfulRedirects,
@@ -2774,9 +2774,9 @@ cacheMisses: Object.values(cacheStats).reduce((sum, c) => sum + c.misses, 0)
 
 // ==================== GRACEFUL SHUTDOWN ====================
 async function gracefulShutdown(server, io) {
-logger.info(‘🛑 Shutting down gracefully…’);
+logger.info('🛑 Shutting down gracefully...');
 const timeout = setTimeout(() => {
-logger.error(‘Force shutdown timeout reached’);
+logger.error('Force shutdown timeout reached');
 process.exit(1);
 }, 30000);
 
@@ -2784,7 +2784,7 @@ try {
 if (server) await new Promise(resolve => server.close(resolve));
 if (io) await new Promise(resolve => io.close(resolve));
 
-```
+
 for (const key in globalIntervals) {
   clearInterval(globalIntervals[key]);
 }
@@ -2811,10 +2811,10 @@ if (redisClient) {
 clearTimeout(timeout);
 logger.info('✅ Graceful shutdown complete');
 process.exit(0);
-```
+
 
 } catch (err) {
-logger.error(‘Shutdown error:’, sanitizeLogEntry(err.message));
+logger.error('Shutdown error:', sanitizeLogEntry(err.message));
 process.exit(1);
 }
 }
