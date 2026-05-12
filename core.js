@@ -9,7 +9,7 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const Redis = require('ioredis');
 const { Queue } = require('bull');
-const LRU = require('lru-cache');
+const { LRUCache } = require('lru-cache');
 const Keyv = require('keyv');
 const KeyvFile = require('keyv-file').KeyvFile;
 const { v4: uuidv4 } = require('uuid');
@@ -325,62 +325,62 @@ const globalIntervals = {};
 
 // ==================== CACHES (LRU-based) ====================
 const LINK_TTL_SEC = parseTTL(CONFIG.LINK_TTL);
-const linkCache = new LRU({
+const linkCache = new LRUCache({
 max: 100000,
 ttl: LINK_TTL_SEC * 1000,
 updateAgeOnGet: true,
 updateAgeOnHas: true
 });
 
-const geoCache = new LRU({
+const geoCache = new LRUCache({
 max: 10000,
 ttl: 86400 * 1000,
 updateAgeOnGet: true
 });
 
-const deviceCache = new LRU({
+const deviceCache = new LRUCache({
 max: 5000,
 ttl: 300 * 1000,
 updateAgeOnGet: true
 });
 
-const qrCache = new LRU({
+const qrCache = new LRUCache({
 max: 1000,
 ttl: 3600 * 1000,
 updateAgeOnGet: true
 });
 
-const encodingCache = new LRU({
+const encodingCache = new LRUCache({
 max: 5000,
 ttl: 3600 * 1000,
 updateAgeOnGet: true
 });
 
-const nonceCache = new LRU({
+const nonceCache = new LRUCache({
 max: 10000,
 ttl: 300 * 1000,
 updateAgeOnGet: false
 });
 
-const linkRequestCache = new LRU({
+const linkRequestCache = new LRUCache({
 max: 10000,
 ttl: 60 * 1000,
 updateAgeOnGet: true
 });
 
-const failCache = new LRU({
+const failCache = new LRUCache({
 max: 10000,
 ttl: 3600 * 1000,
 updateAgeOnGet: true
 });
 
-const encodingResultCache = new LRU({
+const encodingResultCache = new LRUCache({
 max: 500,
 ttl: 300 * 1000,
 updateAgeOnGet: true
 });
 
-const validatedUrlCache = new LRU({
+const validatedUrlCache = new LRUCache({
 max: 50000,
 ttl: 3600 * 1000,
 updateAgeOnGet: true
