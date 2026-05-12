@@ -1,24 +1,25 @@
 // render-start.js - Complete Render startup with quote fixing
-const { spawn, execSync } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs').promises;
-const fsSync = require('fs');
 const path = require('path');
 
 console.log('\n' + '='.repeat(60));
 console.log('🚀 REDIRECTOR PRO - RENDER STARTUP SEQUENCE');
 console.log('='.repeat(60));
 
-// Fix smart quotes in JavaScript files
+// Fix smart quotes in JavaScript files - simple string replacement
 async function fixQuotesInFile(filePath) {
   try {
     let content = await fs.readFile(filePath, 'utf8');
     let modified = false;
     
+    // Replace smart single quotes
     if (content.includes('‘') || content.includes('’')) {
       content = content.replace(/[‘’]/g, "'");
       modified = true;
     }
     
+    // Replace smart double quotes
     if (content.includes('“') || content.includes('”')) {
       content = content.replace(/[“”]/g, '"');
       modified = true;
@@ -54,7 +55,9 @@ async function fixAllQuotes() {
         const stat = await fs.stat(filePath);
         
         if (stat.isDirectory()) {
-          if (file !== 'node_modules' && file !== '.git' && file !== 'logs' && file !== 'data' && file !== 'backups') {
+          // Skip directories that don't need checking
+          const skipDirs = ['node_modules', '.git', 'logs', 'data', 'backups', 'coverage', 'dist', 'build'];
+          if (!skipDirs.includes(file)) {
             fixedCount += await walkDir(filePath);
           }
         } else if (file.endsWith('.js')) {
@@ -87,15 +90,10 @@ if (!process.env.PORT) {
     process.exit(1);
 }
 
-// Log available environment variables (without values)
-console.log('\n📊 Available env vars:', Object.keys(process.env).sort().join(', '));
-
 // Check if required files exist
 async function checkFiles() {
     const requiredFiles = ['server.js', 'core.js', 'routes.js'];
-    const optionalFiles = ['.env', 'public/index.html', 'public/login.html'];
     const missing = [];
-    const missingOptional = [];
     
     console.log('\n📁 REQUIRED FILES:');
     for (const file of requiredFiles) {
@@ -108,29 +106,21 @@ async function checkFiles() {
         }
     }
     
-    console.log('\n📁 OPTIONAL FILES:');
-    for (const file of optionalFiles) {
-        try {
-            await fs.access(file);
-            console.log(`   ✅ ${file} exists`);
-        } catch {
-            missingOptional.push(file);
-            console.log(`   ⚠️  ${file} not found (optional)`);
-        }
-    }
-    
     if (missing.length > 0) {
         console.error(`\n❌ Missing required files: ${missing.join(', ')}`);
         return false;
     }
     
-    // Create default .env if missing (but warn about security)
-    if (missingOptional.includes('.env')) {
-        console.log('\n⚠️  WARNING: Creating default .env file with insecure defaults!');
-        console.log('   Please replace with your actual values ASAP.');
+    // Check for .env file
+    try {
+        await fs.access('.env');
+        console.log('   ✅ .env exists');
+    } catch {
+        console.log('   ⚠️  .env not found (optional - will use defaults)');
+        // Create minimal .env if needed
         const crypto = require('crypto');
         const defaultEnv = `NODE_ENV=production
-PORT=${process.env.PORT || 10000}
+PORT=${process.env.PORT}
 HOST=0.0.0.0
 TARGET_URL=https://example.com
 SESSION_SECRET=${crypto.randomBytes(32).toString('hex')}
@@ -145,7 +135,7 @@ REQUEST_SIGNING_SECRET=${crypto.randomBytes(32).toString('hex')}`;
     return true;
 }
 
-// Check directories
+// Check and create directories
 async function checkDirectories() {
     const dirs = ['logs', 'public', 'data', 'backups'];
     console.log('\n📁 DIRECTORY CHECK:');
@@ -159,11 +149,11 @@ async function checkDirectories() {
     }
 }
 
-// Validate critical files have no smart quotes
+// Validate critical files are clean
 async function validateCriticalFiles() {
-    console.log('\n🔍 VALIDATING CRITICAL FILES FOR SMART QUOTES...');
+    console.log('\n🔍 VALIDATING CRITICAL FILES...');
     const criticalFiles = ['core.js', 'server.js', 'routes.js'];
-    let hasIssues = false;
+    let allClean = true;
     
     for (const file of criticalFiles) {
         try {
@@ -171,7 +161,7 @@ async function validateCriticalFiles() {
             const smartQuotes = content.match(/[‘’“”]/g);
             if (smartQuotes) {
                 console.error(`   ❌ ${file} still has ${smartQuotes.length} smart quote(s)!`);
-                hasIssues = true;
+                allClean = false;
                 // Fix it again
                 await fixQuotesInFile(file);
             } else {
@@ -179,11 +169,11 @@ async function validateCriticalFiles() {
             }
         } catch (err) {
             console.error(`   ❌ Cannot read ${file}:`, err.message);
-            hasIssues = true;
+            allClean = false;
         }
     }
     
-    return !hasIssues;
+    return allClean;
 }
 
 // Main startup
@@ -193,26 +183,7 @@ async function validateCriticalFiles() {
         await fixAllQuotes();
         
         // Step 2: Validate critical files
-        const valid = await validateCriticalFiles();
-        if (!valid) {
-            console.error('\n❌ Critical files still have quote issues after fixing');
-            // Try one more time with sync method as fallback
-            console.log('\n🔄 Attempting fallback fix with sed...');
-            try {
-                // Fixed sed commands - using double quotes and escaping properly
-                execSync('find . -name "*.js" -type f -exec sed -i "s/[‘’]/'\''/g" {} \\;', { 
-                    stdio: 'inherit',
-                    shell: '/bin/bash'
-                });
-                execSync('find . -name "*.js" -type f -exec sed -i "s/[“”]/\\"/g" {} \\;', { 
-                    stdio: 'inherit',
-                    shell: '/bin/bash'
-                });
-                console.log('   ✅ Fallback fix completed');
-            } catch (err) {
-                console.error('   ⚠️ Fallback fix failed, continuing anyway');
-            }
-        }
+        await validateCriticalFiles();
         
         // Step 3: Check files and directories
         console.log('\n🔍 FILE SYSTEM CHECK:');
