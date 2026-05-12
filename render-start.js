@@ -1,5 +1,5 @@
 // render-start.js - Complete Render startup with quote fixing
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
@@ -124,18 +124,20 @@ async function checkFiles() {
         return false;
     }
     
-    // Create default .env if missing
+    // Create default .env if missing (but warn about security)
     if (missingOptional.includes('.env')) {
-        console.log('\n📝 Creating default .env file...');
+        console.log('\n⚠️  WARNING: Creating default .env file with insecure defaults!');
+        console.log('   Please replace with your actual values ASAP.');
+        const crypto = require('crypto');
         const defaultEnv = `NODE_ENV=production
 PORT=${process.env.PORT || 10000}
 HOST=0.0.0.0
 TARGET_URL=https://example.com
-SESSION_SECRET=${require('crypto').randomBytes(32).toString('hex')}
-METRICS_API_KEY=${require('crypto').randomBytes(32).toString('hex')}
+SESSION_SECRET=${crypto.randomBytes(32).toString('hex')}
+METRICS_API_KEY=${crypto.randomBytes(32).toString('hex')}
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VT0ZO2uOEv6VIO
-REQUEST_SIGNING_SECRET=${require('crypto').randomBytes(32).toString('hex')}`;
+REQUEST_SIGNING_SECRET=${crypto.randomBytes(32).toString('hex')}`;
         await fs.writeFile('.env', defaultEnv);
         console.log('   ✅ Created default .env file');
     }
@@ -196,10 +198,16 @@ async function validateCriticalFiles() {
             console.error('\n❌ Critical files still have quote issues after fixing');
             // Try one more time with sync method as fallback
             console.log('\n🔄 Attempting fallback fix with sed...');
-            const { execSync } = require('child_process');
             try {
-                execSync('find . -name "*.js" -type f -exec sed -i "s/[‘’]/'\''/g" {} \\;', { stdio: 'inherit' });
-                execSync('find . -name "*.js" -type f -exec sed -i '\''s/[“”]/"/g'\'' {} \\;', { stdio: 'inherit' });
+                // Fixed sed commands - using double quotes and escaping properly
+                execSync('find . -name "*.js" -type f -exec sed -i "s/[‘’]/'\''/g" {} \\;', { 
+                    stdio: 'inherit',
+                    shell: '/bin/bash'
+                });
+                execSync('find . -name "*.js" -type f -exec sed -i "s/[“”]/\\"/g" {} \\;', { 
+                    stdio: 'inherit',
+                    shell: '/bin/bash'
+                });
                 console.log('   ✅ Fallback fix completed');
             } catch (err) {
                 console.error('   ⚠️ Fallback fix failed, continuing anyway');
