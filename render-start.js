@@ -1,4 +1,4 @@
-// render-start.js - Complete Render startup with quote fixing
+// render-start.js - Complete Render startup with error capture
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
@@ -7,19 +7,17 @@ console.log('\n' + '='.repeat(60));
 console.log('🚀 REDIRECTOR PRO - RENDER STARTUP SEQUENCE');
 console.log('='.repeat(60));
 
-// Fix smart quotes in JavaScript files - simple string replacement
+// Fix smart quotes in JavaScript files
 async function fixQuotesInFile(filePath) {
   try {
     let content = await fs.readFile(filePath, 'utf8');
     let modified = false;
     
-    // Replace smart single quotes
     if (content.includes('‘') || content.includes('’')) {
       content = content.replace(/[‘’]/g, "'");
       modified = true;
     }
     
-    // Replace smart double quotes
     if (content.includes('“') || content.includes('”')) {
       content = content.replace(/[“”]/g, '"');
       modified = true;
@@ -40,40 +38,15 @@ async function fixQuotesInFile(filePath) {
 async function fixAllQuotes() {
   console.log('\n🔧 FIXING SMART QUOTES IN JAVASCRIPT FILES...');
   
-  const walkDir = async (dir) => {
-    let fixedCount = 0;
-    let files = [];
-    try {
-      files = await fs.readdir(dir);
-    } catch (err) {
-      return 0;
-    }
-    
-    for (const file of files) {
-      const filePath = path.join(dir, file);
-      try {
-        const stat = await fs.stat(filePath);
-        
-        if (stat.isDirectory()) {
-          // Skip directories that don't need checking
-          const skipDirs = ['node_modules', '.git', 'logs', 'data', 'backups', 'coverage', 'dist', 'build'];
-          if (!skipDirs.includes(file)) {
-            fixedCount += await walkDir(filePath);
-          }
-        } else if (file.endsWith('.js')) {
-          if (await fixQuotesInFile(filePath)) fixedCount++;
-        }
-      } catch (err) {
-        // Ignore permission errors
-      }
-    }
-    
-    return fixedCount;
-  };
+  const criticalFiles = ['core.js', 'server.js', 'routes.js'];
+  let fixedCount = 0;
   
-  const fixedFiles = await walkDir(process.cwd());
-  console.log(`\n📊 Fixed ${fixedFiles} JavaScript file(s)`);
-  return fixedFiles;
+  for (const file of criticalFiles) {
+    if (await fixQuotesInFile(file)) fixedCount++;
+  }
+  
+  console.log(`\n📊 Fixed ${fixedCount} JavaScript file(s)`);
+  return fixedCount;
 }
 
 // Log environment for debugging
@@ -116,20 +89,7 @@ async function checkFiles() {
         await fs.access('.env');
         console.log('   ✅ .env exists');
     } catch {
-        console.log('   ⚠️  .env not found (optional - will use defaults)');
-        // Create minimal .env if needed
-        const crypto = require('crypto');
-        const defaultEnv = `NODE_ENV=production
-PORT=${process.env.PORT}
-HOST=0.0.0.0
-TARGET_URL=https://example.com
-SESSION_SECRET=${crypto.randomBytes(32).toString('hex')}
-METRICS_API_KEY=${crypto.randomBytes(32).toString('hex')}
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD_HASH=$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VT0ZO2uOEv6VIO
-REQUEST_SIGNING_SECRET=${crypto.randomBytes(32).toString('hex')}`;
-        await fs.writeFile('.env', defaultEnv);
-        console.log('   ✅ Created default .env file');
+        console.log('   ⚠️  .env not found');
     }
     
     return true;
@@ -162,8 +122,6 @@ async function validateCriticalFiles() {
             if (smartQuotes) {
                 console.error(`   ❌ ${file} still has ${smartQuotes.length} smart quote(s)!`);
                 allClean = false;
-                // Fix it again
-                await fixQuotesInFile(file);
             } else {
                 console.log(`   ✅ ${file} is clean`);
             }
@@ -195,17 +153,34 @@ async function validateCriticalFiles() {
         
         await checkDirectories();
         
-        // Step 4: Start the server
+        // Step 4: Start the server with error capture
         console.log('\n🚀 Starting server...');
         console.log(`   Command: node --max-old-space-size=512 --expose-gc server.js`);
         console.log(`   Port: ${process.env.PORT}`);
         console.log(`   Time: ${new Date().toISOString()}`);
         console.log('\n' + '-'.repeat(60) + '\n');
         
-        // Spawn the server process with GC enabled
+        // Spawn the server process with GC enabled and capture errors
         const server = spawn('node', ['--max-old-space-size=512', '--expose-gc', 'server.js'], {
-            stdio: 'inherit',
+            stdio: ['pipe', 'pipe', 'pipe'],
             env: process.env
+        });
+        
+        // Capture stdout
+        server.stdout.on('data', (data) => {
+            console.log(data.toString());
+        });
+        
+        // Capture stderr - THIS IS CRITICAL
+        server.stderr.on('data', (data) => {
+            const errorMsg = data.toString();
+            console.error(errorMsg);
+            
+            // If we see certain errors, log them clearly
+            if (errorMsg.includes('Error') || errorMsg.includes('Cannot find')) {
+                console.error('\n❌ SERVER ERROR DETECTED:');
+                console.error(errorMsg);
+            }
         });
         
         server.on('error', (err) => {
@@ -216,6 +191,11 @@ async function validateCriticalFiles() {
         server.on('exit', (code, signal) => {
             if (code !== 0) {
                 console.error(`\n❌ Server exited with code ${code} (signal: ${signal})`);
+                console.error('\n📝 TROUBLESHOOTING:');
+                console.error('   1. Check if all required env vars are set');
+                console.error('   2. Verify database connection if using DATABASE_URL');
+                console.error('   3. Check Redis connection if using REDIS_URL');
+                console.error('   4. Look for errors above this message');
                 process.exit(code || 1);
             }
         });
