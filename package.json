@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "fix:quotes": "node scripts/fix-quotes.js",
-    "fix:quotes:quick": "find . -name '*.js' -type f -exec sed -i \"s/[‘’]/'/g\" {} \\; && find . -name '*.js' -type f -exec sed -i 's/[“”]/"/g' {} \\;",
+    "fix:quotes:quick": "find . -name '*.js' -type f -exec sed -i \"s/[‘’]/'/g\" {} \\; && find . -name '*.js' -type f -exec sed -i 's/[“”]/\\\\\"/g' {} \\;",
     "prestart": "node generate-secrets.js --write",
     "prestart:render": "npm run fix:quotes:quick && node generate-secrets.js --write || true",
     "start": "node --max-old-space-size=512 --expose-gc server.js",
