@@ -30,79 +30,7 @@ const APP_CONFIG = {
 };
 
 // ============================================
-// State Management with Improved Organization
-// ============================================
-class AppState {
-    constructor() {
-        this.socket = null;
-        this.socketQueue = new SocketQueue();
-        this.requestsChart = null;
-        this.deviceChart = null;
-        this.countryChart = null;
-        this.analyticsDeviceChart = null;
-        this.performanceChart = null;
-        this.allLinks = [];
-        this.filteredLinks = [];
-        this.autoScroll = true;
-        this.showTimestamps = true;
-        this.currentTimeRange = '5m';
-        this.logCount = 0;
-        this.selectedLinkMode = typeof LINK_LENGTH_MODE !== 'undefined' ? LINK_LENGTH_MODE : 'short';
-        this.currentPage = 1;
-        this.pageSize = 20;
-        this.securityData = { blockedIPs: [], activeAttacks: [], totalAttempts: 0, activeSessions: [] };
-        this.logFilter = 'all';
-        this.logRate = 0;
-        this.logRateCounter = 0;
-        this.encryptionKeys = [];
-        this.auditLogs = [];
-        this.backupStatus = {};
-        this.mfaSetupRequired = false;
-        this.activeAlerts = [];
-        this.notificationSound = false;
-        this.darkMode = true;
-        this.refreshInterval = APP_CONFIG.refreshInterval;
-        this.autoRefreshEnabled = true;
-        this.chartUpdateTimeout = null;
-        this.cleanupFunctions = [];
-        this.startTime = Date.now();
-        this.updateIntervals = [];
-    }
-
-    registerCleanup(fn) {
-        this.cleanupFunctions.push(fn);
-    }
-
-    registerInterval(interval) {
-        this.updateIntervals.push(interval);
-    }
-
-    destroy() {
-        this.cleanupFunctions.forEach(fn => fn());
-        this.updateIntervals.forEach(clearInterval);
-        
-        // Destroy charts
-        [this.requestsChart, this.deviceChart, this.countryChart, 
-         this.analyticsDeviceChart, this.performanceChart].forEach(chart => {
-            if (chart) {
-                chart.destroy();
-            }
-        });
-        
-        if (this.socket) {
-            this.socket.disconnect();
-        }
-        
-        if (this.chartUpdateTimeout) {
-            clearTimeout(this.chartUpdateTimeout);
-        }
-    }
-}
-
-const appState = new AppState();
-
-// ============================================
-// Socket Queue for Managing Events
+// Socket Queue for Managing Events - MUST BE BEFORE AppState
 // ============================================
 class SocketQueue {
     constructor(maxSize = APP_CONFIG.maxSocketQueueSize) {
@@ -167,6 +95,78 @@ class SocketQueue {
         this.processing = false;
     }
 }
+
+// ============================================
+// State Management with Improved Organization
+// ============================================
+class AppState {
+    constructor() {
+        this.socket = null;
+        this.socketQueue = new SocketQueue();  // ✅ Now SocketQueue is defined
+        this.requestsChart = null;
+        this.deviceChart = null;
+        this.countryChart = null;
+        this.analyticsDeviceChart = null;
+        this.performanceChart = null;
+        this.allLinks = [];
+        this.filteredLinks = [];
+        this.autoScroll = true;
+        this.showTimestamps = true;
+        this.currentTimeRange = '5m';
+        this.logCount = 0;
+        this.selectedLinkMode = typeof LINK_LENGTH_MODE !== 'undefined' ? LINK_LENGTH_MODE : 'short';
+        this.currentPage = 1;
+        this.pageSize = 20;
+        this.securityData = { blockedIPs: [], activeAttacks: [], totalAttempts: 0, activeSessions: [] };
+        this.logFilter = 'all';
+        this.logRate = 0;
+        this.logRateCounter = 0;
+        this.encryptionKeys = [];
+        this.auditLogs = [];
+        this.backupStatus = {};
+        this.mfaSetupRequired = false;
+        this.activeAlerts = [];
+        this.notificationSound = false;
+        this.darkMode = true;
+        this.refreshInterval = APP_CONFIG.refreshInterval;
+        this.autoRefreshEnabled = true;
+        this.chartUpdateTimeout = null;
+        this.cleanupFunctions = [];
+        this.startTime = Date.now();
+        this.updateIntervals = [];
+    }
+
+    registerCleanup(fn) {
+        this.cleanupFunctions.push(fn);
+    }
+
+    registerInterval(interval) {
+        this.updateIntervals.push(interval);
+    }
+
+    destroy() {
+        this.cleanupFunctions.forEach(fn => fn());
+        this.updateIntervals.forEach(clearInterval);
+        
+        // Destroy charts
+        [this.requestsChart, this.deviceChart, this.countryChart, 
+         this.analyticsDeviceChart, this.performanceChart].forEach(chart => {
+            if (chart) {
+                chart.destroy();
+            }
+        });
+        
+        if (this.socket) {
+            this.socket.disconnect();
+        }
+        
+        if (this.chartUpdateTimeout) {
+            clearTimeout(this.chartUpdateTimeout);
+        }
+    }
+}
+
+const appState = new AppState();
 
 // ============================================
 // Data Validators
