@@ -1572,13 +1572,40 @@ function createServer(app, server) {
         const loginPath = path.join(__dirname, 'public', 'login.html');
         let loginHtml = await fs.readFile(loginPath, 'utf8');
 
-        loginHtml = loginHtml
-          .replace('id="csrfToken"', `id="csrfToken" value="${csrfToken}"`)
-          .replace(/\{\{NONCE\}\}/g, nonce);
+        // Prepare all template variables
+        const templateVars = {
+          csrfToken: JSON.stringify(csrfToken),
+          ADMIN_USERNAME: JSON.stringify(CONFIG.ADMIN_USERNAME),
+          LOGIN_ATTEMPTS_MAX: CONFIG.LOGIN_ATTEMPTS_MAX || 10,
+          LOGIN_BLOCK_DURATION: CONFIG.LOGIN_BLOCK_DURATION || 3600000,
+          version: JSON.stringify('4.3.0'),
+          MFA_ENABLED: CONFIG.MFA_ENABLED === true ? 'true' : 'false',
+          WEBAUTHN_ENABLED: CONFIG.WEBAUTHN_ENABLED === true ? 'true' : 'false',
+          DEBUG: CONFIG.DEBUG === true ? 'true' : 'false',
+          SESSION_TTL: CONFIG.SESSION_TTL || 86400,
+          NONCE: JSON.stringify(nonce)
+        };
 
+        // Replace all template variables
+        // Handle both {{key|json}} for JSON contexts and {{key}} for attribute contexts
+        for (const [key, value] of Object.entries(templateVars)) {
+          // Replace {{key|json}} with value as-is (for JSON.parse in scripts)
+          const jsonPattern = new RegExp(`{{${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\|json}}`, 'g');
+          loginHtml = loginHtml.replace(jsonPattern, value);
+          
+          // Replace {{key}} with unquoted value if it's JSON-stringified (for HTML attributes)
+          let plainValue = value;
+          if (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) {
+            plainValue = value.slice(1, -1);  // Remove JSON quotes
+          }
+          const plainPattern = new RegExp(`{{${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}}}`, 'g');
+          loginHtml = loginHtml.replace(plainPattern, plainValue);
+        }
+
+        // Set CSP header
         res.setHeader(
           'Content-Security-Policy',
-          `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.socket.io https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;`
+          `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdnjs.cloudflare.com https://cdn.socket.io https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com data:;`
         );
 
         res.send(loginHtml);
