@@ -1318,6 +1318,7 @@
         sessionInfo: document.getElementById('sessionInfo'),
         mfaSetup: document.getElementById('mfaSetup'),
         deviceFingerprint: document.getElementById('deviceFingerprint'),
+        csrfToken: document.getElementById('csrfToken'),
         themeToggle: document.getElementById('themeToggle'),
         themeIcon: document.getElementById('themeIcon'),
         biometricIndicator: document.getElementById('biometricIndicator'),
@@ -2080,7 +2081,7 @@
         Utils.log('Initializing login page...');
         
         // Set CSRF token
-        if (DOM.csrfToken.value) {
+        if (DOM.csrfToken?.value) {
           State.csrfToken = DOM.csrfToken.value;
         }
         
