@@ -411,17 +411,21 @@ function createServer(app, server) {
       if (req.route?.path) {
         const route = req.route.path;
         const version = req.apiVersion || 'unknown';
-        httpRequestDurationMicroseconds
-          .labels(req.method, route, res.statusCode, version)
-          .observe(time);
+        if (httpRequestDurationMicroseconds && typeof httpRequestDurationMicroseconds.labels === 'function') {
+          httpRequestDurationMicroseconds
+            .labels(req.method, route, res.statusCode, version)
+            .observe(time);
+        }
       }
 
-      totalRequests.inc({
-        method: req.method,
-        path: req.path,
-        status: res.statusCode,
-        version: req.apiVersion || 'unknown'
-      });
+      if (totalRequests && typeof totalRequests.inc === 'function') {
+        totalRequests.inc({
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          version: req.apiVersion || 'unknown'
+        });
+      }
 
       stats.totalRequests++;
       stats.performance.totalResponseTime += time;
@@ -728,7 +732,9 @@ function createServer(app, server) {
       }
 
       stats.generatedLinks++;
-      linkGenerations.inc({ mode: linkMode, version: 'v1' });
+      if (linkGenerations && typeof linkGenerations.inc === 'function') {
+        linkGenerations.inc({ mode: linkMode, version: 'v1' });
+      }
       stats.linkModes[linkMode] = (stats.linkModes[linkMode] || 0) + 1;
 
       const linkLength = generatedUrl.length;
@@ -958,7 +964,9 @@ function createServer(app, server) {
       }
 
       stats.generatedLinks++;
-      linkGenerations.inc({ mode: linkMode, version: 'v2' });
+      if (linkGenerations && typeof linkGenerations.inc === 'function') {
+        linkGenerations.inc({ mode: linkMode, version: 'v2' });
+      }
       stats.linkModes[linkMode] = (stats.linkModes[linkMode] || 0) + 1;
 
       const linkLength = generatedUrl.length;
@@ -1096,7 +1104,9 @@ function createServer(app, server) {
             }
 
             stats.generatedLinks++;
-            linkGenerations.inc({ mode: linkMode, version: 'v2' });
+            if (linkGenerations && typeof linkGenerations.inc === 'function') {
+              linkGenerations.inc({ mode: linkMode, version: 'v2' });
+            }
 
             return {
               index,
@@ -1925,12 +1935,15 @@ function createServer(app, server) {
       url: req.originalUrl
     });
 
-    totalRequests.inc({
-      method: req.method,
-      path: req.path,
-      status: statusCode,
-      version: req.apiVersion || 'unknown'
-    });
+    // Safely increment metrics if available
+    if (totalRequests && typeof totalRequests.inc === 'function') {
+      totalRequests.inc({
+        method: req.method,
+        path: req.path,
+        status: statusCode,
+        version: req.apiVersion || 'unknown'
+      });
+    }
 
     // Operational errors
     if (err instanceof AppError) {
