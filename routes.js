@@ -1687,63 +1687,64 @@ function createServer(app, server) {
   });
 
   app.get('/admin', ensureAuthenticated, async (req, res) => {
-    try {
-      const indexPath = path.join(__dirname, 'public', 'index.html');
-      let html = await fs.readFile(indexPath, 'utf8');
+  try {
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    let html = await fs.readFile(indexPath, 'utf8');
 
-      const dbPool = getDbPool();
-      const redisClient = getRedis();
-      const queues = getQueues();
+    const dbPool = getDbPool();
+    const redisClient = getRedis();
+    const queues = getQueues();
+    
+    // ✅ Declare nonce FIRST
+    const nonce = crypto.randomBytes(16).toString('hex');
 
-      const replacements = {
-        '{{METRICS_API_KEY}}': CONFIG.METRICS_API_KEY,
-        '{{TARGET_URL}}': CONFIG.TARGET_URL,
-        '{{csrfToken}}': req.session.csrfToken,
-        '{{dbPoolStatus}}': dbPool ? 'connected' : 'disconnected',
-        '{{redisStatus}}': redisClient?.status === 'ready' ? 'connected' : 'disconnected',
-        '{{redirectQueueStatus}}': queues.redirectQueue ? 'enabled' : 'disabled',
-        '{{encodingQueueStatus}}': queues.encodingQueue ? 'enabled' : 'disabled',
-        '{{bullBoardPath}}': CONFIG.BULL_BOARD_PATH,
-        '{{version}}': '4.3.0',
-        '{{nodeEnv}}': CONFIG.NODE_ENV,
-        '{{enableEncryption}}': CONFIG.ENABLE_ENCRYPTION ? 'checked' : '',
-        '{{encryptionEnabled}}': CONFIG.ENABLE_ENCRYPTION ? 'checked' : '',
-        '{{keyRotationDays}}': CONFIG.ENCRYPTION_KEY_ROTATION_DAYS,
-        '{{RATE_LIMIT_MAX}}': CONFIG.RATE_LIMIT_MAX_REQUESTS,
-        '{{ENCODING_RATE_LIMIT}}': CONFIG.ENCODING_RATE_LIMIT,
-        '{{AUDIT_LOG_ENABLED}}': CONFIG.AUDIT_LOG_ENABLED,
-        '{{BACKUP_ENCRYPTION_ENABLED}}': CONFIG.BACKUP_ENCRYPTION_ENABLED,
-        '{{linkLengthMode}}': CONFIG.LINK_LENGTH_MODE,
-        '{{allowLinkModeSwitch}}': CONFIG.ALLOW_LINK_MODE_SWITCH,
-        '{{longLinkSegments}}': CONFIG.LONG_LINK_SEGMENTS,
-        '{{longLinkParams}}': CONFIG.LONG_LINK_PARAMS,
-        '{{linkEncodingLayers}}': CONFIG.LINK_ENCODING_LAYERS,
-        '{{maxEncodingIterations}}': CONFIG.MAX_ENCODING_ITERATIONS,
-        '{{enableCompression}}': CONFIG.ENABLE_COMPRESSION ? 'checked' : '',
-        '{{NONCE}}': nonce
-      };
+    const replacements = {
+      '{{METRICS_API_KEY}}': CONFIG.METRICS_API_KEY,
+      '{{TARGET_URL}}': CONFIG.TARGET_URL,
+      '{{csrfToken}}': req.session.csrfToken,
+      '{{dbPoolStatus}}': dbPool ? 'connected' : 'disconnected',
+      '{{redisStatus}}': redisClient?.status === 'ready' ? 'connected' : 'disconnected',
+      '{{redirectQueueStatus}}': queues.redirectQueue ? 'enabled' : 'disabled',
+      '{{encodingQueueStatus}}': queues.encodingQueue ? 'enabled' : 'disabled',
+      '{{bullBoardPath}}': CONFIG.BULL_BOARD_PATH,
+      '{{version}}': '4.3.0',
+      '{{nodeEnv}}': CONFIG.NODE_ENV,
+      '{{enableEncryption}}': CONFIG.ENABLE_ENCRYPTION ? 'checked' : '',
+      '{{encryptionEnabled}}': CONFIG.ENABLE_ENCRYPTION ? 'checked' : '',
+      '{{keyRotationDays}}': CONFIG.ENCRYPTION_KEY_ROTATION_DAYS || 7,
+      '{{RATE_LIMIT_MAX}}': CONFIG.RATE_LIMIT_MAX_REQUESTS || 100,
+      '{{ENCODING_RATE_LIMIT}}': CONFIG.ENCODING_RATE_LIMIT || 10,
+      '{{AUDIT_LOG_ENABLED}}': CONFIG.AUDIT_LOG_ENABLED || false,
+      '{{BACKUP_ENCRYPTION_ENABLED}}': CONFIG.BACKUP_ENCRYPTION_ENABLED || false,
+      '{{linkLengthMode}}': CONFIG.LINK_LENGTH_MODE || 'short',
+      '{{allowLinkModeSwitch}}': CONFIG.ALLOW_LINK_MODE_SWITCH || true,
+      '{{longLinkSegments}}': CONFIG.LONG_LINK_SEGMENTS || 6,
+      '{{longLinkParams}}': CONFIG.LONG_LINK_PARAMS || 13,
+      '{{linkEncodingLayers}}': CONFIG.LINK_ENCODING_LAYERS || 4,
+      '{{maxEncodingIterations}}': CONFIG.MAX_ENCODING_ITERATIONS || 3,
+      '{{enableCompression}}': CONFIG.ENABLE_COMPRESSION ? 'checked' : '',
+      '{{NONCE}}': nonce  
+    };
 
-      for (const [key, val] of Object.entries(replacements)) {
-        const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        html = html.replace(new RegExp(escapedKey, 'g'), String(val));
-      }
-
-      const nonce = crypto.randomBytes(16).toString('hex');
-      res.locals.nonce = nonce;
-
-      res.setHeader(
-        'Content-Security-Policy',
-        `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.socket.io https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;`
-      );
-
-      html = html.replace(/<script nonce="{{NONCE}}">/g, `<script nonce="${nonce}">`);
-      res.send(html);
-    } catch (err) {
-      logger.error('Failed to serve dashboard:', sanitizeLogEntry(err.message));
-      res.status(500).send('Dashboard not found');
+    for (const [key, val] of Object.entries(replacements)) {
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      html = html.replace(new RegExp(escapedKey, 'g'), String(val));
     }
-  });
 
+    res.locals.nonce = nonce;
+
+    res.setHeader(
+      'Content-Security-Policy',
+      `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'nonce-${nonce}' https://cdn.jsdelivr.net https://cdn.socket.io https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; img-src 'self' data: https: http:; connect-src 'self' wss: ws: https: http:;`
+    );
+
+    html = html.replace(/<script nonce="{{NONCE}}">/g, `<script nonce="${nonce}">`);
+    res.send(html);
+  } catch (err) {
+    logger.error('Failed to serve dashboard:', sanitizeLogEntry(err.message));
+    res.status(500).send('Dashboard not found');
+  }
+});
   app.post('/admin/logout', (req, res) => {
     if (getDbPool() && req.session?.id) {
       queryWithTimeout(
