@@ -109,8 +109,11 @@ const strictLimiter = rateLimit({
       endpoint: req.path,
       device: req.deviceInfo?.type
     });
-    botBlocks.inc({ reason: 'rate_limit' });
-    stats.botBlocks++;
+    if (botBlocks && typeof botBlocks.inc === 'function') {
+      botBlocks.inc({ reason: 'rate_limit' });
+    } else {
+      stats.botBlocks++;
+    }
     res.redirect(CONFIG.BOT_URLS[crypto.randomInt(0, CONFIG.BOT_URLS.length)]);
   }
 });
@@ -1299,8 +1302,11 @@ function createServer(app, server) {
       const linkKey = `${linkId}:${ip}`;
       const requestCount = cacheGet(linkRequestCache, 'linkReq', linkKey) || 0;
       if (requestCount >= MAX_IP_REQUESTS) {
-        botBlocks.inc({ reason: 'rate_limit' });
-        stats.botBlocks++;
+        if (botBlocks && typeof botBlocks.inc === 'function') {
+          botBlocks.inc({ reason: 'rate_limit' });
+        } else {
+          stats.botBlocks++;
+        }
         return res.redirect(CONFIG.BOT_URLS[crypto.randomInt(0, CONFIG.BOT_URLS.length)]);
       }
       cacheSet(linkRequestCache, 'linkReq', linkKey, requestCount + 1);
@@ -1418,8 +1424,11 @@ function createServer(app, server) {
       const requestCount = cacheGet(linkRequestCache, 'linkReq', ipKey) || 0;
 
       if (requestCount >= MAX_LONG_LINK_REQUESTS) {
-        botBlocks.inc({ reason: 'rate_limit' });
-        stats.botBlocks++;
+        if (botBlocks && typeof botBlocks.inc === 'function') {
+          botBlocks.inc({ reason: 'rate_limit' });
+        } else {
+          stats.botBlocks++;
+        }
         return res.redirect(
           CONFIG.BOT_URLS[crypto.randomInt(0, CONFIG.BOT_URLS.length)]
         );
