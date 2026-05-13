@@ -528,6 +528,16 @@ function createServer(app, server) {
         logger.error('Failed to fetch links:', sanitizeLogEntry(err.message))
       );
 
+    socket.emit('backup', {
+      lastBackup: null,
+      count: 0,
+      totalSize: 0,
+      enabled: CONFIG.AUTO_BACKUP_ENABLED,
+      interval: CONFIG.AUTO_BACKUP_INTERVAL,
+      retention: CONFIG.BACKUP_RETENTION_DAYS,
+      encryption: CONFIG.BACKUP_ENCRYPTION_ENABLED
+    });
+
     socket.on('disconnect', () => {
       logger.info('Admin socket disconnected', { socketId: socket.id });
     });
@@ -1697,7 +1707,37 @@ function createServer(app, server) {
         '{{nodeEnv}}': CONFIG.NODE_ENV,
         '{{enableEncryption}}': CONFIG.ENABLE_ENCRYPTION,
         '{{encryptionEnabled}}': CONFIG.ENABLE_ENCRYPTION,
-        '{{keyRotationDays}}': CONFIG.ENCRYPTION_KEY_ROTATION_DAYS
+        '{{keyRotationDays}}': CONFIG.ENCRYPTION_KEY_ROTATION_DAYS,
+        '{{RATE_LIMIT_MAX}}': CONFIG.RATE_LIMIT_MAX_REQUESTS,
+        '{{AUDIT_LOG_ENABLED}}': CONFIG.AUDIT_LOG_ENABLED,
+        '{{BACKUP_ENCRYPTION_ENABLED}}': CONFIG.BACKUP_ENCRYPTION_ENABLED,
+        '{{LINK_LENGTH_MODE}}': CONFIG.LINK_LENGTH_MODE,
+        '{{ALLOW_LINK_MODE_SWITCH}}': CONFIG.ALLOW_LINK_MODE_SWITCH,
+        '{{LONG_LINK_SEGMENTS}}': CONFIG.LONG_LINK_SEGMENTS,
+        '{{LONG_LINK_PARAMS}}': CONFIG.LONG_LINK_PARAMS,
+        '{{LINK_ENCODING_LAYERS}}': CONFIG.LINK_ENCODING_LAYERS,
+        '{{ENABLE_COMPRESSION}}': CONFIG.ENABLE_COMPRESSION,
+        '{{MAX_ENCODING_ITERATIONS}}': CONFIG.MAX_ENCODING_ITERATIONS,
+        '{{RATE_LIMIT_WINDOW}}': CONFIG.RATE_LIMIT_WINDOW,
+        '{{ENCODING_RATE_LIMIT}}': CONFIG.ENCODING_RATE_LIMIT,
+        '{{SESSION_TTL}}': CONFIG.SESSION_TTL,
+        '{{MFA_ENABLED}}': CONFIG.MFA_ENABLED || false,
+        '{{WEBAUTHN_ENABLED}}': CONFIG.WEBAUTHN_ENABLED || false,
+        '{{DEBUG}}': CONFIG.DEBUG,
+        '{{BULL_BOARD_ENABLED}}': CONFIG.BULL_BOARD_ENABLED,
+        '{{CSP_ENABLED}}': CONFIG.CSP_ENABLED,
+        '{{HSTS_ENABLED}}': CONFIG.HSTS_ENABLED,
+        '{{LOGIN_ATTEMPTS_MAX}}': CONFIG.LOGIN_ATTEMPTS_MAX,
+        '{{LOGIN_BLOCK_DURATION}}': CONFIG.LOGIN_BLOCK_DURATION,
+        '{{AUTO_BACKUP_ENABLED}}': CONFIG.AUTO_BACKUP_ENABLED,
+        '{{AUTO_BACKUP_INTERVAL}}': CONFIG.AUTO_BACKUP_INTERVAL,
+        '{{BACKUP_RETENTION_DAYS}}': CONFIG.BACKUP_RETENTION_DAYS,
+        '{{HEALTH_CHECK_INTERVAL}}': CONFIG.HEALTH_CHECK_INTERVAL,
+        '{{MEMORY_THRESHOLD_WARNING}}': CONFIG.MEMORY_THRESHOLD_WARNING,
+        '{{MEMORY_THRESHOLD_CRITICAL}}': CONFIG.MEMORY_THRESHOLD_CRITICAL,
+        '{{CIRCUIT_BREAKER_TIMEOUT}}': CONFIG.CIRCUIT_BREAKER_TIMEOUT,
+        '{{CIRCUIT_BREAKER_ERROR_THRESHOLD}}': CONFIG.CIRCUIT_BREAKER_ERROR_THRESHOLD,
+        '{{CIRCUIT_BREAKER_RESET_TIMEOUT}}': CONFIG.CIRCUIT_BREAKER_RESET_TIMEOUT
       };
 
       for (const [key, val] of Object.entries(replacements)) {
@@ -1842,6 +1882,19 @@ function createServer(app, server) {
     res.json({
       status: getBreakerMonitor()?.getStatus() || {},
       metrics: getBreakerMonitor()?.getMetrics() || {}
+    });
+  });
+
+  app.get('/admin/backup/status', ensureAuthenticated, (req, res) => {
+    // TODO: Implement actual backup status tracking
+    res.json({
+      lastBackup: null,
+      count: 0,
+      totalSize: 0,
+      enabled: CONFIG.AUTO_BACKUP_ENABLED,
+      interval: CONFIG.AUTO_BACKUP_INTERVAL,
+      retention: CONFIG.BACKUP_RETENTION_DAYS,
+      encryption: CONFIG.BACKUP_ENCRYPTION_ENABLED
     });
   });
 
