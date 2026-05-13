@@ -2999,6 +2999,41 @@
   
   <!-- Alert Container -->
   <div class="alert" id="alert"></div>
+
+  <div style="display: none;">
+    <!-- Status indicators -->
+    <span id="nodeEnv"></span>
+    <span id="dbStatus"></span>
+    <span id="redisStatus"></span>
+    <span id="queueStatus"></span>
+    <span id="versionInfo"></span>
+    <span id="activeConnections"></span>
+    <span id="totalResponseTime"></span>
+    <span id="avgDecodeTime"></span>
+    <span id="socketStatus"></span>
+    
+    <!-- Button references -->
+    <button id="viewKeyBtn" style="display: none;"></button>
+    <button id="reloadConfigBtn" style="display: none;"></button>
+    <button id="viewHealthBtn" style="display: none;"></button>
+    <button id="darkModeToggle" style="display: none;"></button>
+    
+    <!-- Additional stats elements -->
+    <span id="currentKeyExpiry"></span>
+    <span id="totalDevices"></span>
+    <span id="cacheSize"></span>
+    <span id="peakLinks"></span>
+    <span id="peakRPS"></span>
+    <span id="totalClicksCount"></span>
+    <span id="currentRate"></span>
+    <span id="currentEncodingRate"></span>
+    <span id="generalRateBar"></span>
+    <span id="encodingRateBar"></span>
+    <span id="botThresholdBar"></span>
+    <span id="totalAttempts"></span>
+    <span id="blockedCount"></span>
+    <span id="activeSessions"></span>
+  </div>
   
   <!-- Main JavaScript -->
   <script src="/js/dashboard.js"></script>
