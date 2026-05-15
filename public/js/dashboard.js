@@ -1,3 +1,4 @@
+
 const APP_CONFIG = {
     version: '4.3.1',
     maxLogEntries: 1000,
