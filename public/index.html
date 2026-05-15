@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0e27">
+  <meta name="color-scheme" content="dark">
+  <title>Redirector Pro v4.3 | Enterprise Dashboard</title>
+  <meta name="description" content="Enterprise-grade URL redirector dashboard with real-time monitoring and analytics">
+  
+  <!-- Security Headers -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:;">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #0a0e27;
+      --bg-secondary: #141829;
+      --bg-tertiary: #1a1f3a;
+      --bg-hover: #252d47;
+      
+      --text-primary: #e0e7ff;
+      --text-secondary: #a0aec0;
+      --text-muted: #718096;
+      
+      --accent-primary: #6366f1;
+      --accent-secondary: #8b5cf6;
+      --accent-tertiary: #ec4899;
+      
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --info: #3b82f6;
+      
+      --border-color: #2d3748;
+      --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+      --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+      
+      --radius: 12px;
+      --radius-lg: 16px;
+      --transition: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--accent-primary);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-secondary);
+    }
+
+    /* Layout */
+    .app-wrapper {
+      display: flex;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1.5rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .header-content {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-weight: 700;
+      font-size: 1.5rem;
+      letter-spacing: -0.5px;
+    }
+
+    .logo i {
+      font-size: 2rem;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-text {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .version-badge {
+      display: inline-block;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: var(--accent-primary);
+      color: white;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+      margin-left: 0.5rem;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 1rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid var(--success);
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .header-actions button {
+      background: var(--accent-primary);
+      border: none;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--radius);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      font-size: 0.875rem;
+    }
+
+    .header-actions button:hover {
+      background: var(--accent-secondary);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(99, 102, 241, 0.4);
+    }
+
+    /* Main Content */
+    .main-container {
+      flex: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 2rem;
+    }
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3), var(--shadow);
+      transform: translateY(-2px);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform var(--transition);
+    }
+
+    .card:hover::before {
+      transform: scaleX(1);
+    }
+
+    /* Stat Card */
+    .stat-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .stat-label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-change {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .stat-change.positive {
+      color: var(--success);
+    }
+
+    .stat-change.negative {
+      color: var(--error);
+    }
+
+    /* Chart Container */
+    .chart-wrapper {
+      position: relative;
+      height: 300px;
+      margin: 2rem 0;
+    }
+
+    /* Table */
+    .table-wrapper {
+      overflow-x: auto;
+      border-radius: var(--radius-lg);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    thead {
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    tbody tr:hover {
+      background: var(--bg-hover);
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-error {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--error);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-info {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--info);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-accent {
+      background: rgba(99, 102, 241, 0.2);
+      color: var(--accent-primary);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--accent-primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-weight: 600;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: width var(--transition), height var(--transition);
+    }
+
+    .btn:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+
+    .btn:hover {
+      background: var(--accent-secondary);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-primary);
+    }
+
+    .btn-sm {
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    /* Forms */
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-secondary);
+    }
+
+    .form-input,
+    .form-select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.875rem;
+      transition: all var(--transition);
+    }
+
+    .form-input:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 2rem;
+      overflow-x: auto;
+    }
+
+    .tab {
+      padding: 1rem 0;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-weight: 600;
+      cursor: pointer;
+      position: relative;
+      white-space: nowrap;
+      transition: color var(--transition);
+    }
+
+    .tab::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent-primary);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform var(--transition);
+    }
+
+    .tab:hover {
+      color: var(--text-primary);
+    }
+
+    .tab.active {
+      color: var(--accent-primary);
+    }
+
+    .tab.active::after {
+      transform: scaleX(1);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 300ms ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Section */
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .section-title i {
+      color: var(--accent-primary);
+    }
+
+    /* Alerts */
+    .alert {
+      padding: 1rem 1.5rem;
+      border-radius: var(--radius);
+      border-left: 4px solid;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .alert-success {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: var(--success);
+    }
+
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.1);
+      border-color: var(--warning);
+    }
+
+    .alert-error {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--error);
+    }
+
+    .alert-info {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: var(--info);
+    }
+
+    .alert-icon {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow);
+    }
+
+    .modal-header {
+      padding: 2rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: color var(--transition);
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 2rem;
+    }
+
+    /* Logs */
+    .logs-container {
+      background: var(--bg-tertiary);
+      border-radius: var(--radius);
+      padding: 1rem;
+      height: 400px;
+      overflow-y: auto;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.75rem;
+      border: 1px solid var(--border-color);
+    }
+
+    .log-entry {
+      padding: 0.5rem;
+      color: var(--text-secondary);
+      border-left: 3px solid transparent;
+      transition: all var(--transition);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-entry:hover {
+      background: var(--bg-hover);
+      border-left-color: var(--accent-primary);
+      color: var(--text-primary);
+    }
+
+    .log-timestamp {
+      color: var(--accent-primary);
+      font-weight: 600;
+    }
+
+    .log-type {
+      color: var(--accent-secondary);
+      font-weight: 600;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .main-container {
+        padding: 1rem;
+      }
+
+      .grid-2,
+      .grid-4 {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        gap: 1rem;
+      }
+
+      .table-wrapper {
+        font-size: 0.75rem;
+      }
+
+      th, td {
+        padding: 0.75rem 0.5rem;
+      }
+    }
+
+    /* Utilities */
+    .text-center { text-align: center; }
+    .text-muted { color: var(--text-muted); }
+    .mb-1 { margin-bottom: 0.5rem; }
+    .mb-2 { margin-bottom: 1rem; }
+    .mb-4 { margin-bottom: 2rem; }
+    .mt-2 { margin-top: 1rem; }
+    .gap-2 { gap: 1rem; }
+    .flex { display: flex; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+    .items-center { align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <i class="fas fa-shield-halved"></i>
+          <div>
+            <span class="logo-text">Redirector Pro</span>
+            <span class="version-badge">v4.3.0</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <div class="status-badge">
+            <span class="status-indicator"></span>
+            <span id="status">Connected</span>
+          </div>
+          <button onclick="handleLogout()">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-container">
+      <!-- Dashboard Tab -->
+      <div id="dashboardTab" class="tab-content active">
+        <h1 class="section-title"><i class="fas fa-chart-line"></i> Dashboard</h1>
+
+        <!-- Key Metrics -->
+        <div class="grid-4">
+          <div class="card stat-card">
+            <div class="stat-label"><i class="fas fa-globe"></i> Total Requests</div>
+            <div class="stat-value" id="totalRequests">0</div>
+            <div class="stat-change positive">↑ +12.5%</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label"><i class="fas fa-link"></i> Active Links</div>
+            <div class="stat-value" id="activeLinks">0</div>
+            <div class="stat-change">Peak: <span id="peakLinks">0</span></div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label"><i class="fas fa-robot"></i> Bot Blocks</div>
+            <div class="stat-value" id="botBlocks">0</div>
+            <div class="stat-change">Block Rate: <span id="blockRate">0%</span></div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-label"><i class="fas fa-memory"></i> Memory</div>
+            <div class="stat-value" id="memoryUsage">0MB</div>
+            <div class="stat-change">CPU: <span id="cpuUsage">0%</span></div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+              <i class="fas fa-chart-line"></i> Request Timeline
+            </h3>
+            <div class="btn-group mb-2">
+              <button class="btn btn-sm btn-secondary time-range" data-range="5m" style="background: var(--accent-primary); color: white;">5m</button>
+              <button class="btn btn-sm btn-secondary time-range" data-range="1h">1h</button>
+              <button class="btn btn-sm btn-secondary time-range" data-range="24h">24h</button>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="requestsChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+              <i class="fas fa-chart-pie"></i> Device Distribution
+            </h3>
+            <div class="chart-wrapper">
+              <canvas id="deviceChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Links Table -->
+        <div class="card">
+          <h3 style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+            <i class="fas fa-list"></i> Recent Links
+          </h3>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Link ID</th>
+                  <th>Mode</th>
+                  <th>Target URL</th>
+                  <th>Created</th>
+                  <th>Clicks</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="linksTable">
+                <tr>
+                  <td colspan="6" class="text-center" style="padding: 2rem;">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 1rem;">Loading links...</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generate Tab -->
+      <div id="generateTab" class="tab-content">
+        <h1 class="section-title"><i class="fas fa-plus-circle"></i> Generate Link</h1>
+        
+        <div class="grid-2">
+          <div class="card">
+            <form onsubmit="handleGenerateLink(event)">
+              <div class="form-group">
+                <label class="form-label">Target URL *</label>
+                <input type="url" class="form-input" id="targetUrl" placeholder="https://example.com" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Link Mode</label>
+                <div class="btn-group">
+                  <button type="button" class="btn btn-sm link-mode-btn" data-mode="short">Short</button>
+                  <button type="button" class="btn btn-sm link-mode-btn" data-mode="long">Long</button>
+                  <button type="button" class="btn btn-sm link-mode-btn" data-mode="auto">Auto</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Expires In</label>
+                <select class="form-select" id="expiresIn">
+                  <option value="30m">30 minutes</option>
+                  <option value="1h">1 hour</option>
+                  <option value="6h">6 hours</option>
+                  <option value="24h">24 hours</option>
+                  <option value="7d">7 days</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Max Clicks (optional)</label>
+                <input type="number" class="form-input" id="maxClicks" placeholder="Unlimited" min="1">
+              </div>
+
+              <button type="submit" class="btn" style="width: 100%;">
+                <i class="fas fa-magic"></i> Generate Link
+              </button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div id="result" style="display: none;">
+              <div class="alert alert-success">
+                <i class="alert-icon fas fa-check-circle"></i>
+                <div>Link generated successfully!</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Generated URL</label>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="text" class="form-input" id="generatedUrl" readonly>
+                  <button class="btn btn-sm" onclick="copyToClipboard('#generatedUrl')">
+                    <i class="fas fa-copy"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid-2">
+                <div>
+                  <div class="form-label">Link ID</div>
+                  <code id="generatedId" style="word-break: break-all;"></code>
+                </div>
+                <div>
+                  <div class="form-label">Expires</div>
+                  <div id="generatedExpires"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Security Tab -->
+      <div id="securityTab" class="tab-content">
+        <h1 class="section-title"><i class="fas fa-shield-alt"></i> Security</h1>
+        
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="margin-bottom: 1.5rem;">Login Attempts</h3>
+            <div id="loginAttemptsTable" class="text-muted">No recent attempts</div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom: 1.5rem;">Rate Limits</h3>
+            <div style="margin-bottom: 1.5rem;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <span>General</span>
+                <span><span id="currentRate">0</span>/100</span>
+              </div>
+              <div style="width: 100%; height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden;">
+                <div id="rateBar" style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 300ms;"></div>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+              <label class="form-label">Bot Detection Threshold</label>
+              <input type="range" class="form-input" id="botThreshold" min="0" max="100" value="65" style="width: 100%;">
+            </div>
+
+            <button class="btn btn-sm" onclick="updateBotThreshold()">Update</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logs Tab -->
+      <div id="logsTab" class="tab-content">
+        <h1 class="section-title"><i class="fas fa-history"></i> Live Logs</h1>
+        
+        <div class="card">
+          <div style="margin-bottom: 1rem;">
+            <input type="text" class="form-input" id="logFilter" placeholder="Filter logs..." style="margin-bottom: 0.5rem;">
+            <div class="btn-group">
+              <button class="btn btn-sm btn-secondary" onclick="clearLogs()">Clear</button>
+              <button class="btn btn-sm btn-secondary" onclick="exportLogs()">Export</button>
+            </div>
+          </div>
+
+          <div class="logs-container" id="logsContainer">
+            <div class="log-entry">
+              <span class="log-timestamp">[00:00:00]</span>
+              <span class="log-type">INIT</span>
+              Waiting for logs...
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation (Fixed at top) -->
+    <div style="position: sticky; top: 80px; background: var(--bg-primary); border-bottom: 1px solid var(--border-color); padding: 0 2rem; z-index: 50;">
+      <div style="max-width: 1600px; margin: 0 auto;">
+        <div class="tabs">
+          <button class="tab active" onclick="showTab('dashboard')">
+            <i class="fas fa-chart-line"></i> Dashboard
+          </button>
+          <button class="tab" onclick="showTab('generate')">
+            <i class="fas fa-plus-circle"></i> Generate
+          </button>
+          <button class="tab" onclick="showTab('security')">
+            <i class="fas fa-shield-alt"></i> Security
+          </button>
+          <button class="tab" onclick="showTab('logs')">
+            <i class="fas fa-history"></i> Logs
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inline JavaScript -->
+  <script>
+    'use strict';
+
+    // ==================== CONFIG ====================
+    const CONFIG = {
+      version: '4.3.0',
+      socketRetries: 15,
+      socketRetryDelay: 1000,
+      logMaxEntries: 500
+    };
+
+    // ==================== STATE ====================
+    const state = {
+      socket: null,
+      charts: {
+        requests: null,
+        device: null
+      },
+      logs: [],
+      currentTab: 'dashboard',
+      linkMode: 'short',
+      timeRange: '5m'
+    };
+
+    // ==================== SOCKET.IO ====================
+    function initSocket() {
+      console.log('🔌 Initializing Socket.IO...');
+      
+      state.socket = io({
+        auth: {
+          token: document.querySelector('[data-api-key]')?.getAttribute('data-api-key') || 'guest'
+        },
+        reconnection: true,
+        reconnectionAttempts: CONFIG.socketRetries,
+        reconnectionDelay: CONFIG.socketRetryDelay,
+        transports: ['websocket', 'polling']
+      });
+
+      state.socket.on('connect', () => {
+        console.log('✅ Socket connected');
+        updateStatus('Connected', 'success');
+      });
+
+      state.socket.on('disconnect', () => {
+        console.log('❌ Socket disconnected');
+        updateStatus('Disconnected', 'warning');
+      });
+
+      state.socket.on('connect_error', (err) => {
+        console.error('Socket error:', err);
+        updateStatus('Connection Error', 'error');
+      });
+
+      state.socket.on('stats', (data) => {
+        if (data) updateDashboard(data);
+      });
+
+      state.socket.on('log', (log) => {
+        if (log) addLog(log);
+      });
+    }
+
+    // ==================== DASHBOARD ====================
+    function updateDashboard(data) {
+      // Update stats
+      document.getElementById('totalRequests').textContent = formatNumber(data.totalRequests || 0);
+      document.getElementById('activeLinks').textContent = formatNumber(data.activeLinks || 0);
+      document.getElementById('botBlocks').textContent = formatNumber(data.botBlocks || 0);
+      document.getElementById('memoryUsage').textContent = formatBytes(data.memory || 0);
+      document.getElementById('cpuUsage').textContent = (data.cpu || 0).toFixed(1) + '%';
+
+      // Update charts
+      updateCharts(data);
+
+      // Update table
+      if (data.links && Array.isArray(data.links)) {
+        updateLinksTable(data.links);
+      }
+    }
+
+    function updateCharts(data) {
+      const requestsCtx = document.getElementById('requestsChart')?.getContext('2d');
+      const deviceCtx = document.getElementById('deviceChart')?.getContext('2d');
+
+      if (!requestsCtx || !deviceCtx) return;
+
+      // Destroy old charts
+      if (state.charts.requests) state.charts.requests.destroy();
+      if (state.charts.device) state.charts.device.destroy();
+
+      // Create new charts
+      state.charts.requests = new Chart(requestsCtx, {
+        type: 'line',
+        data: {
+          labels: data.timeLabels || ['00:00', '05:00', '10:00'],
+          datasets: [{
+            label: 'Requests',
+            data: data.requestCounts || [0, 0, 0],
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 4,
+            pointBackgroundColor: '#6366f1'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#a0aec0' } }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(99, 102, 241, 0.1)' },
+              ticks: { color: '#a0aec0' }
+            },
+            x: { grid: { display: false }, ticks: { color: '#a0aec0' } }
+          }
+        }
+      });
+
+      state.charts.device = new Chart(deviceCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Mobile', 'Desktop', 'Tablet', 'Bot'],
+          datasets: [{
+            data: [data.mobile || 0, data.desktop || 0, data.tablet || 0, data.bot || 0],
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
+            borderColor: 'var(--bg-secondary)',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '70%',
+          plugins: { legend: { position: 'bottom', labels: { color: '#a0aec0' } } }
+        }
+      });
+    }
+
+    function updateLinksTable(links) {
+      const tbody = document.getElementById('linksTable');
+      if (!links.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center">No links found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = links.slice(0, 5).map(link => `
+        <tr>
+          <td><code style="font-size: 0.75rem;">${link.id.substring(0, 12)}...</code></td>
+          <td><span class="badge badge-accent">${link.mode || 'short'}</span></td>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${link.target_url}</td>
+          <td class="text-muted">${new Date(link.created_at).toLocaleString()}</td>
+          <td>${link.clicks || 0}</td>
+          <td><span class="badge badge-success">Active</span></td>
+        </tr>
+      `).join('');
+    }
+
+    // ==================== LINK GENERATION ====================
+    async function handleGenerateLink(e) {
+      e.preventDefault();
+
+      const url = document.getElementById('targetUrl').value;
+      const expires = document.getElementById('expiresIn').value;
+      const maxClicks = document.getElementById('maxClicks').value;
+
+      if (!url) {
+        showAlert('Enter a URL', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/v1/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, expires, maxClicks: maxClicks || null }),
+          credentials: 'include'
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+
+        const data = await res.json();
+        showGeneratedLink(data);
+        showAlert('Link generated!', 'success');
+      } catch (err) {
+        console.error('Generate error:', err);
+        showAlert(err.message || 'Failed to generate link', 'error');
+      }
+    }
+
+    function showGeneratedLink(data) {
+      const result = document.getElementById('result');
+      document.getElementById('generatedUrl').value = data.url;
+      document.getElementById('generatedId').textContent = data.id;
+      document.getElementById('generatedExpires').textContent = new Date(data.expires).toLocaleString();
+      result.style.display = 'block';
+      result.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ==================== LOGS ====================
+    function addLog(log) {
+      state.logs.unshift({
+        time: new Date().toLocaleTimeString(),
+        type: log.type || 'INFO',
+        message: log.message || ''
+      });
+
+      if (state.logs.length > CONFIG.logMaxEntries) {
+        state.logs = state.logs.slice(0, CONFIG.logMaxEntries);
+      }
+
+      renderLogs();
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('logsContainer');
+      const filter = document.getElementById('logFilter')?.value?.toLowerCase() || '';
+
+      const filtered = state.logs.filter(log =>
+        !filter || log.type.toLowerCase().includes(filter) || log.message.toLowerCase().includes(filter)
+      );
+
+      container.innerHTML = filtered.map(log => `
+        <div class="log-entry">
+          <span class="log-timestamp">[${log.time}]</span>
+          <span class="log-type">${log.type}</span>
+          ${log.message}
+        </div>
+      `).join('');
+
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function clearLogs() {
+      state.logs = [];
+      renderLogs();
+      showAlert('Logs cleared', 'info');
+    }
+
+    function exportLogs() {
+      const text = state.logs.map(l => `[${l.time}] ${l.type}: ${l.message}`).join('\n');
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `logs-${Date.now()}.txt`;
+      a.click();
+      showAlert('Logs exported', 'success');
+    }
+
+    // ==================== UTILITIES ====================
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+
+      const tab = document.getElementById(tabName + 'Tab');
+      const btn = document.querySelector(`.tab[onclick*="${tabName}"]`);
+
+      if (tab) tab.classList.add('active');
+      if (btn) btn.classList.add('active');
+
+      state.currentTab = tabName;
+    }
+
+    function updateStatus(text, status) {
+      const statusEl = document.getElementById('status');
+      if (statusEl) statusEl.textContent = text;
+    }
+
+    function showAlert(message, type = 'info') {
+      const icons = { success: 'check-circle', error: 'exclamation-circle', warning: 'exclamation-triangle', info: 'info-circle' };
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.innerHTML = `
+        <i class="alert-icon fas fa-${icons[type]}"></i>
+        <span>${message}</span>
+      `;
+      alert.style.position = 'fixed';
+      alert.style.top = '100px';
+      alert.style.right = '2rem';
+      alert.style.zIndex = '999';
+      alert.style.maxWidth = '400px';
+      document.body.appendChild(alert);
+
+      setTimeout(() => alert.remove(), 3000);
+    }
+
+    function copyToClipboard(selector) {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      el.select();
+      document.execCommand('copy');
+      showAlert('Copied!', 'success');
+    }
+
+    function formatNumber(num) {
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+      return num.toString();
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function updateBotThreshold() {
+      const value = document.getElementById('botThreshold').value;
+      showAlert(`Bot threshold updated to ${value}%`, 'success');
+    }
+
+    function handleLogout() {
+      if (confirm('Log out?')) {
+        fetch('/admin/logout', { method: 'POST' }).then(() => {
+          window.location.href = '/admin/login';
+        });
+      }
+    }
+
+    // ==================== EVENT LISTENERS ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 Dashboard loading...');
+
+      // Tab buttons
+      document.querySelectorAll('.time-range').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.time-range').forEach(b => {
+            b.style.background = '';
+            b.style.color = '';
+          });
+          e.target.style.background = 'var(--accent-primary)';
+          e.target.style.color = 'white';
+          state.timeRange = e.target.dataset.range;
+        });
+      });
+
+      // Link mode buttons
+      document.querySelectorAll('.link-mode-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          document.querySelectorAll('.link-mode-btn').forEach(b => b.style.background = '');
+          e.target.style.background = 'var(--accent-primary)';
+          e.target.style.color = 'white';
+          state.linkMode = e.target.dataset.mode;
+        });
+      });
+
+      // Log filter
+      const logFilter = document.getElementById('logFilter');
+      if (logFilter) {
+        logFilter.addEventListener('input', renderLogs);
+      }
+
+      // Initialize
+      initSocket();
+
+      // Emit test stats for demo
+      setTimeout(() => {
+        updateDashboard({
+          totalRequests: 15420,
+          activeLinks: 342,
+          botBlocks: 156,
+          memory: 245 * 1024 * 1024,
+          cpu: 23.5,
+          timeLabels: ['12:00', '12:05', '12:10', '12:15', '12:20'],
+          requestCounts: [120, 145, 132, 156, 142],
+          mobile: 450,
+          desktop: 320,
+          tablet: 85,
+          bot: 45,
+          links: [
+            { id: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6', mode: 'short', target_url: 'https://example.com/page1', created_at: new Date(Date.now() - 3600000).toISOString(), clicks: 45 },
+            { id: 'b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7', mode: 'long', target_url: 'https://example.com/very/long/path/page2', created_at: new Date(Date.now() - 7200000).toISOString(), clicks: 32 },
+            { id: 'c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8', mode: 'short', target_url: 'https://example.com/page3', created_at: new Date(Date.now() - 10800000).toISOString(), clicks: 28 }
+          ]
+        });
+
+        addLog({ type: 'SYSTEM', message: 'Dashboard initialized' });
+      }, 500);
+
+      console.log('✅ Dashboard ready!');
+    });
+
+    // Cleanup on unload
+    window.addEventListener('beforeunload', () => {
+      if (state.socket) state.socket.disconnect();
+    });
+  </script>
+</body>
+</html>
